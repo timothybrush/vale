@@ -38,11 +38,62 @@ cases:
       }
 
   - name: text
-    about: metrics come from the markup walker, so a plain-text file has none
+    about: a plain-text file is its own summary, so it has the text metrics,
+      a paragraph per run of lines between blank lines, and none of the
+      element counts markup provides
     args: ls-metrics test.txt
     exit: 0
     want: |
-      {}
+      {
+          "automated_readability": 3.01,
+          "characters": 89,
+          "coleman_liau": 5.51,
+          "complex_words": 3,
+          "dale_chall": 7.72,
+          "flesch_kincaid": 4.89,
+          "flesch_reading_ease": 68.43,
+          "gunning_fog": 8.22,
+          "lix": 31.07,
+          "long_words": 5,
+          "paragraphs": 3,
+          "polysyllabic_words": 4,
+          "quote_words": 0,
+          "sentence_length_sd": 2.05,
+          "sentences": 4,
+          "smog": 8.84,
+          "syllables": 30,
+          "words": 19
+      }
+
+  - name: text-metric-rule
+    about: "vale-cli/readability#11 -- a `metric` rule reads a plain-text
+      file's summary and fires on it, as it does on Markdown"
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.{md,txt}]
+        BasedOnStyles = T
+      styles/T/Words.yml: |
+        extends: metric
+        message: "This text has %s words."
+        level: warning
+        formula: words
+        condition: "> 3"
+      test.txt: |
+        A first paragraph with two sentences in it. The second sentence is here.
+
+        A second paragraph.
+      test.md: |
+        A first paragraph with two sentences in it. The second sentence is here.
+
+        A second paragraph.
+    args: --output=line test.txt test.md
+    exit: 0
+    want: |
+      test.md:1:1:T.Words:This text has 16.00 words.
+      test.txt:1:1:T.Words:This text has 16.00 words.
 
   - name: empty-directory
     about: the argument only has to exist, and a directory does -- so one

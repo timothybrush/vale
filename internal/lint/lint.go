@@ -411,7 +411,26 @@ func (l *Linter) lintTxt(f *core.File) error {
 			return err
 		}
 	}
-	return nil
+
+	// No walker writes a plain-text file's summary, so the file is its own:
+	// one run covering it, and a paragraph per run of lines between blank
+	// lines. Without this a `metric` rule never fired on `.txt`, and
+	// `ls-metrics` printed nothing for it.
+	f.Summary.WriteString(f.Content)
+	f.SummaryRuns = []nlp.Run{{At: 0, Src: 0, N: len(f.Content)}}
+	f.Metrics["paragraphs"] = countParagraphs(f.Content)
+	return l.lintSizedScopes(f)
+}
+
+// countParagraphs counts the runs of non-blank lines in plain text.
+func countParagraphs(text string) int {
+	n := 0
+	for _, p := range strings.Split(text, "\n\n") {
+		if strings.TrimSpace(p) != "" {
+			n++
+		}
+	}
+	return n
 }
 
 func (l *Linter) lintLines(f *core.File) error {
