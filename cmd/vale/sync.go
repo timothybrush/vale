@@ -82,6 +82,12 @@ func download(name, url, styles string, index int) error {
 		return core.NewE100("download", err)
 	}
 
+	// The release that landed may need a newer Vale than this one; see
+	// pkgver.go for the one that gets installed instead.
+	if dir, err = supportedRelease(name, url, dir); err != nil {
+		return err
+	}
+
 	return installPkg(dir, name, styles, index)
 }
 
