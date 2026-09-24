@@ -385,7 +385,7 @@ func (mgr *Manager) compileCheck(file []byte, chkName, path string) (Rule, bool,
 	// 30` -- land after inheritance and before the decoder, which coerces the
 	// string and rejects a parameter the rule does not have.
 	for param, val := range mgr.Config.RuleToParams[chkName] {
-		generic[param] = val
+		generic[param] = paramValue(val)
 	}
 	if scope, ok := generic["scope"]; scope == nil || !ok {
 		// Not for `sequence`, which needs to tell an unset scope from an
@@ -466,6 +466,39 @@ func (mgr *Manager) registerCheck(chkName string, rule Rule, taggedPOS bool) err
 	return mgr.AddRule(chkName, rule)
 }
 
+// defaultRule is a built-in rule's definition with the configuration's
+// settings for it applied: its level, and its scalar parameters, so that
+// `Vale.Spelling[split] = YES` reaches the rule the way it reaches one loaded
+// from a file. The definition is copied first; the defaults are shared.
+func (mgr *Manager) defaultRule(name string) baseCheck {
+	generic := baseCheck{}
+	for k, v := range defaultRules[name] {
+		generic[k] = v
+	}
+	full := "Vale." + name
+	if level, ok := mgr.Config.RuleToLevel[full]; ok {
+		generic["level"] = level
+	}
+	for param, val := range mgr.Config.RuleToParams[full] {
+		generic[param] = paramValue(val)
+	}
+	generic["path"] = "internal"
+	return generic
+}
+
+// paramValue is a scalar setting as the rule decoder reads it. YES and NO
+// are how the configuration spells a bool everywhere else, so they are
+// accepted for a bool parameter too; anything else is passed as written.
+func paramValue(val string) string {
+	switch strings.ToUpper(strings.TrimSpace(val)) {
+	case "YES":
+		return "true"
+	case "NO":
+		return "false"
+	}
+	return val
+}
+
 func (mgr *Manager) loadDefaultRules() error {
 	if !mgr.needsStyle("Vale") {
 		return nil
@@ -477,29 +510,13 @@ func (mgr *Manager) loadDefaultRules() error {
 		}
 	}
 
-	repetition := defaultRules["Repetition"]
-	if level, ok := mgr.Config.RuleToLevel["Vale.Repetition"]; ok {
-		repetition["level"] = level
+	for _, name := range []string{"Repetition", "Spelling"} {
+		rule, err := buildRule(mgr.Config, mgr.defaultRule(name))
+		if err != nil {
+			return err
+		}
+		mgr.rules["Vale."+name] = rule
 	}
-	repetition["path"] = "internal"
-
-	rule, err := buildRule(mgr.Config, repetition)
-	if err != nil {
-		return err
-	}
-	mgr.rules["Vale.Repetition"] = rule
-
-	spelling := defaultRules["Spelling"]
-	if level, ok := mgr.Config.RuleToLevel["Vale.Spelling"]; ok {
-		spelling["level"] = level
-	}
-	spelling["path"] = "internal"
-
-	rule, err = buildRule(mgr.Config, spelling)
-	if err != nil {
-		return err
-	}
-	mgr.rules["Vale.Spelling"] = rule
 
 	// TODO: where should this go?
 	mgr.loadVocabRules()

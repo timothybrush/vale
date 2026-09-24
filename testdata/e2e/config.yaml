@@ -530,3 +530,25 @@ cases:
       docs/page.md:1:5:Vale.Spelling:Did you really mean 'kubectl'?
       docs/page.md:1:30:Vale.Spelling:Did you really mean 'Quxelate'?
       docs/page.md:1:44:Vale.Spelling:Did you really mean 'quxelate'?
+
+  - name: builtin-rule-params
+    about: "a scalar setting reaches the built-in rules as it does one loaded
+      from a file: `Vale.Spelling[split] = YES` checks an identifier's parts,
+      so the misspelled half of `recieveMessage` is reported and the sound
+      half is not. Before, only a level setting reached the built-ins, and
+      the parameter was accepted and ignored."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.md]
+        BasedOnStyles = Vale
+        Vale.Spelling[split] = YES
+      styles/.keep: ""
+      test.md: |
+        Call recieveMessage, then flushInterval.
+    args: test.md
+    exit: 1
+    want: |
+      test.md:1:6:Vale.Spelling:Did you really mean 'recieve'?
