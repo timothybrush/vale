@@ -64,15 +64,17 @@ type walker struct {
 	// use to sequentially update our context.
 	queue []string
 
-	// tagHistory holds the HTML tags we encounter in a given block -- e.g.,
-	// if we see <ul>, <li>, <p>, we'd get tagHistory = [ul li p]. It's reset
-	// on every non-inline end tag.
+	// tagHistory holds the HTML tags open around the current text in a given
+	// block -- e.g., if we see <ul>, <li>, <p>, we'd get tagHistory = [ul li
+	// p]. An inline tag is popped when it closes; the history is reset on
+	// every non-inline end tag.
 	tagHistory []string
 
-	// clsHistory holds the `class` of each tag in tagHistory, at the same
-	// index, so that a block can be scoped by the classes enclosing it. Both
-	// are reset together, so this is a handful of strings at a time rather
-	// than anything that accumulates across the document.
+	// clsHistory holds the `class` of each tag opened in the block, inline
+	// ones included after they close, so that a block can be scoped by the
+	// classes enclosing it and by those of the elements it holds. Both are
+	// reset together, so this is a handful of strings at a time rather than
+	// anything that accumulates across the document.
 	clsHistory []string
 
 	// idsHistory holds the selections marked on the tags in tagHistory, and
@@ -272,6 +274,18 @@ func (w *walker) addTag(tag, class, marks string) {
 	w.clsHistory = append(w.clsHistory, class)
 	w.idsHistory = append(w.idsHistory, strings.Fields(marks)...)
 	w.activeTag = tag
+}
+
+// popTag forgets an inline tag once it closes, so that the text after it is
+// not read as inside it: Docutils wraps a hyphenated literal in
+// `<tt><span class="pre">`, and with the pair left in the history every
+// later text node of the paragraph passed for literal content. The tag's
+// class stays in clsHistory: an inline element's class reaches the scope of
+// the block holding it, which is how a QDoc `\span {header}` is targeted.
+func (w *walker) popTag(tag string) {
+	if n := len(w.tagHistory); n > 0 && w.tagHistory[n-1] == tag {
+		w.tagHistory = w.tagHistory[:n-1]
+	}
 }
 
 // An openTag is one still-open block container.

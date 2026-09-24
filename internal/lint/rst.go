@@ -2,6 +2,7 @@ package lint
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,10 +20,9 @@ import (
 // `::` for rst2html, including the use of runtime options (e.g., :caption:).
 var reCodeBlock = regexp.MustCompile(`\.\. (?:raw|code(?:-block)?):: *(?:[\w-]+)?(?:\s+:\w+:.*)*`)
 
-// We replace custom directives with `.. code::`.
-//
-// See https://github.com/errata-ai/vale/v2/issues/119.
-var reSphinx = regexp.MustCompile(`.. (?:glossary|contents)::`)
+// A `contents` directive repeats the document's headings, so it is read as
+// code. See https://github.com/errata-ai/vale/v2/issues/119.
+var reSphinx = regexp.MustCompile(`.. contents::`)
 var rstArgs = []string{
 	"--quiet",
 	"--halt=5",
@@ -43,12 +43,108 @@ var rstArgs = []string{
 // parses the flags through Docutils' own command-line handling rather than
 // mapping them to settings by hand, so the pooled settings cannot drift from
 // what a per-file rst2html invocation would use.
-const rstServer = `import sys
+//
+// Docutils knows its own directives and roles, and a Sphinx project's files
+// use Sphinx's and its extensions' as well; Docutils drops the body of every
+// directive it does not know. So before parsing, the server fills the gap:
+// the body of an unknown directive is prose, except for a named few holding
+// code, data, or generated content, and the text of an unknown role is code,
+// except for the reference and interface roles, whose text is prose. A
+// project's `[docutils]` section adds to both lists; the first argument
+// carries it as JSON, and the Docutils flags follow. See #294.
+const rstServer = `import json, re, sys
+from docutils import nodes
 from docutils.core import Publisher, publish_string
+from docutils.parsers.rst import Directive, directives, roles
+from docutils.statemachine import StringList
+
+CONFIG = json.loads(sys.argv[1] or "{}")
+
+class AnyOptions(dict):
+    def __contains__(self, key):
+        return True
+    def __getitem__(self, key):
+        return directives.unchanged
+    def get(self, key, default=None):
+        return directives.unchanged
+
+class Prose(Directive):
+    optional_arguments = 1
+    final_argument_whitespace = True
+    has_content = True
+    option_spec = AnyOptions()
+    def run(self):
+        # The first line of the argument block is the argument -- a version, a
+        # signature, a title. Any lines indented under it are prose, as in
+        # "versionadded", whose text sits there rather than in the content.
+        node = nodes.container()
+        if self.arguments:
+            rest = self.arguments[0].split("\n")[1:]
+            if rest:
+                src = self.state.document.current_source
+                block = StringList(rest, items=[(src, self.lineno + i) for i in range(len(rest))])
+                self.state.nested_parse(block, self.lineno, node)
+        if self.content:
+            self.state.nested_parse(self.content, self.content_offset, node)
+        return [node]
+
+class Skip(Prose):
+    def run(self):
+        # A literal block rather than nothing: the text is then masked out of
+        # the source, so a match elsewhere is not placed on a copy in here.
+        text = "\n".join(list(self.arguments) + list(self.content))
+        return [nodes.literal_block(text, text)]
+
+CODE = {
+    "toctree", "literalinclude", "highlight", "index", "tabularcolumns",
+    "math", "graphviz", "graph", "digraph", "inheritance-diagram",
+    "productionlist", "doctest", "testcode", "testoutput", "testsetup",
+    "testcleanup", "currentmodule", "module", "default-domain",
+    "codeauthor", "sectionauthor", "cssclass", "rst-class",
+} | set(CONFIG.get("code") or [])
+
+_directive = directives.directive
+def directive(name, language_module, document):
+    fn, messages = _directive(name, language_module, document)
+    if fn is not None:
+        return fn, messages
+    norm = name.lower()
+    if norm in CODE or norm.startswith("auto"):
+        return Skip, []
+    return Prose, []
+directives.directive = directive
+
+PROSE = {
+    "ref", "doc", "any", "numref", "term", "guilabel", "menuselection",
+    "abbr", "dfn",
+} | set(CONFIG.get("prose") or [])
+TARGETED = {"ref", "doc", "any", "numref"}
+_title = re.compile(r"^(.*\S)\s*<[^<>]+>$", re.S)
+
+def prose_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    m = _title.match(text)
+    if m:
+        text = m.group(1)
+    elif name.lower().split(":")[-1] in TARGETED:
+        return [nodes.literal(rawtext, text)], []
+    # Plain text, not an inline element: the words are part of the sentence.
+    return [nodes.Text(text)], []
+
+def code_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    return [nodes.literal(rawtext, text)], []
+
+_role = roles.role
+def role(name, language_module, lineno, reporter):
+    fn, messages = _role(name, language_module, lineno, reporter)
+    if fn is not None:
+        return fn, messages
+    base = name.lower().split(":")[-1]
+    return (prose_role if base in PROSE else code_role), []
+roles.role = role
 
 _pub = Publisher()
 _pub.set_components("standalone", "restructuredtext", "html4css1")
-_pub.process_command_line(argv=sys.argv[1:])
+_pub.process_command_line(argv=sys.argv[2:])
 SETTINGS = _pub.settings
 
 buf = sys.stdin.buffer
@@ -173,7 +269,7 @@ func rstProbe(exe string) []string {
 	// carries a non-ASCII character on purpose: a mismatched default
 	// encoding is what broke the first version of the AsciiDoc pool, and
 	// an ASCII-only probe would have passed anyway.
-	probe, err := startExtProc(candidate, rstArgs)
+	probe, err := startExtProc(candidate, rstAttrs("{}"))
 	if err != nil {
 		return nil
 	}
@@ -222,15 +318,16 @@ func (l *Linter) lintRST(f *core.File) error {
 // be reached directly.
 func (l *Linter) callRst(text, exe string) (string, error) {
 	if direct := rstFastPath(exe); direct != nil {
+		attrs := rstAttrs(l.docutilsConfig())
 		l.rstOnce.Do(func() {
-			pool, err := newProcPool(direct, rstArgs, l.poolSize())
+			pool, err := newProcPool(direct, attrs, l.poolSize())
 			if err == nil {
 				l.rst = pool
 			}
 		})
 
 		if l.rst != nil {
-			html, err := l.rst.convert(text, direct, rstArgs)
+			html, err := l.rst.convert(text, direct, attrs)
 			if err != nil {
 				return "", err
 			}
@@ -244,6 +341,30 @@ func (l *Linter) callRst(text, exe string) (string, error) {
 	}
 
 	return rstBody(html), nil
+}
+
+// rstAttrs is the server's argument list: the `[docutils]` section as JSON,
+// then the Docutils flags.
+func rstAttrs(config string) []string {
+	return append([]string{config}, rstArgs...)
+}
+
+// docutilsConfig is the `[docutils]` section as the server reads it.
+func (l *Linter) docutilsConfig() string {
+	names := func(key string) []string {
+		out := []string{}
+		for _, n := range strings.Split(l.Manager.Config.Docutils[key], ",") {
+			if n = strings.TrimSpace(n); n != "" {
+				out = append(out, strings.ToLower(n))
+			}
+		}
+		return out
+	}
+	cfg, _ := json.Marshal(map[string][]string{
+		"code":  names("CodeDirectives"),
+		"prose": names("ProseRoles"),
+	})
+	return string(cfg)
 }
 
 // rstBody takes the document body out of a full rst2html page.

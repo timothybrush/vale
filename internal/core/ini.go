@@ -538,12 +538,18 @@ func processSources(cfg *Config, sources []string) (*ini.File, error) {
 	return uCfg, err
 }
 
+// docutilsKeys are the keys a `[docutils]` section may set: the directives
+// whose body is code rather than prose, and the roles whose text is prose
+// rather than an identifier. See lint.rstServer.
+var docutilsKeys = []string{"CodeDirectives", "ProseRoles"}
+
 func processConfig(uCfg *ini.File, cfg *Config, dry bool) (*ini.File, error) {
 	core := uCfg.Section("")
 	global := uCfg.Section("*")
 
 	formats := uCfg.Section("formats")
 	adoc := uCfg.Section("asciidoctor")
+	docutils := uCfg.Section("docutils")
 
 	// Default settings
 	for _, k := range core.KeyStrings() {
@@ -580,6 +586,15 @@ func processConfig(uCfg *ini.File, cfg *Config, dry bool) (*ini.File, error) {
 		cfg.Asciidoctor[k] = adoc.Key(k).String()
 	}
 
+	// Docutils settings
+	for _, k := range docutils.KeyStrings() {
+		if !StringInSlice(k, docutilsKeys) {
+			Warn(fmt.Sprintf("'%s' isn't a docutils option; Vale is ignoring it.", k))
+			continue
+		}
+		cfg.Docutils[k] = docutils.Key(k).String()
+	}
+
 	// Global settings
 	for _, k := range global.KeyStrings() {
 		if _, option := coreOpts[k]; option {
@@ -602,7 +617,7 @@ func processConfig(uCfg *ini.File, cfg *Config, dry bool) (*ini.File, error) {
 
 	// Syntax-specific settings
 	for _, sec := range uCfg.SectionStrings() {
-		if StringInSlice(sec, []string{"*", "DEFAULT", "formats", "asciidoctor"}) {
+		if StringInSlice(sec, []string{"*", "DEFAULT", "formats", "asciidoctor", "docutils"}) {
 			continue
 		}
 

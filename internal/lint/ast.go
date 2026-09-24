@@ -175,6 +175,7 @@ func (l *Linter) lintHTMLTokens(f *core.File, raw []byte, offset int) error { //
 			}
 			walker.addTag(txt, class, getAttribute(tok, markAttr))
 		} else if tokt == html.EndTagToken && core.StringInSlice(txt, inlineTags) {
+			walker.popTag(txt)
 			walker.activeTag = ""
 			closedInline = true
 			padComment = ""
@@ -592,12 +593,14 @@ func checkClasses(attr string, ignore []string) bool {
 // See https://github.com/errata-ai/vale/v2/issues/140.
 func shouldBeSkipped(tagHistory []string, ext string) bool {
 	if ext == ".rst" {
-		n := len(tagHistory)
-		for i := n - 1; i >= 0; i-- {
+		// Text inside a `tt`, directly or through the `pre` spans Docutils
+		// wraps its words in. A closed inline tag is popped from the
+		// history, so the nearest enclosing tag is the one to judge by.
+		for i := len(tagHistory) - 1; i >= 0; i-- {
 			if tagHistory[i] == "span" {
 				continue
 			}
-			return tagHistory[i] == "tt" && i+1 != n
+			return tagHistory[i] == "tt"
 		}
 	}
 	return false

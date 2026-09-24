@@ -201,6 +201,7 @@ type Config struct {
 	Checks            []string                     // All checks to load
 	Formats           map[string]string            // A map of unknown -> known formats
 	Asciidoctor       map[string]string            // A map of asciidoctor attributes
+	Docutils          map[string]string            // Settings for reading reStructuredText
 	FormatToLang      map[string]string            // A map of format to lang ID
 	GBaseStyles       []string                     // Global base style
 	GChecks           map[string]bool              // Global checks
@@ -256,6 +257,7 @@ func NewConfig(flags *CLIFlags) (*Config, error) {
 	cfg.Flags = flags
 	cfg.Formats = make(map[string]string)
 	cfg.Asciidoctor = make(map[string]string)
+	cfg.Docutils = make(map[string]string)
 	cfg.GChecks = make(map[string]bool)
 	cfg.MinAlertLevel = 0
 	cfg.RuleToLevel = make(map[string]string)

@@ -484,3 +484,37 @@ func Test_processConfig_laterSourceWins(t *testing.T) {
 		t.Error("S.G is on; the project switched it off")
 	}
 }
+
+// A `[docutils]` section is kept for the reStructuredText server, and a key
+// it doesn't define is dropped with a warning rather than passed along.
+func Test_processConfig_docutils(t *testing.T) {
+	body := `[docutils]
+CodeDirectives = mermaid, plantuml
+ProseRoles = kbd
+Unknown = x
+
+[*.rst]
+BasedOnStyles = Vale
+`
+	uCfg, err := shadowLoad([]byte(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conf, err := NewConfig(&CLIFlags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = processConfig(uCfg, conf, false); err != nil {
+		t.Fatal(err)
+	}
+
+	want := map[string]string{"CodeDirectives": "mermaid, plantuml", "ProseRoles": "kbd"}
+	if fmt.Sprint(conf.Docutils) != fmt.Sprint(want) {
+		t.Errorf("Docutils = %v, want %v", conf.Docutils, want)
+	}
+	if _, found := conf.SecToPat["docutils"]; found {
+		t.Error("the docutils section was compiled as a file glob")
+	}
+}
