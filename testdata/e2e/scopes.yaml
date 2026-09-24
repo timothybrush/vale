@@ -682,3 +682,59 @@ cases:
     args: test.md
     exit: 2
     contains: "'heading' is a scope Vale defines"
+
+  - name: selectors
+    about: "the selector syntax is Selectors Level 4: a group of relative
+      selectors in `:has()`, with `>`, `+`, and `~`, and `:is()` or
+      `:where()` for one of several. A section that opens with either
+      heading level is one selection, and a paragraph is found from the
+      heading beside it."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.md]
+        BasedOnStyles = L
+      styles/L/Methods.yml: |
+        extends: occurrence
+        message: "Methods says nothing about blinding."
+        level: error
+        scope: 'doc(section:has(> h1:contains("methods"), > h2:contains("methods")))'
+        token: '(?i)\bblind'
+        min: 1
+      styles/L/Either.yml: |
+        extends: existence
+        message: "'%s' in a section heading."
+        level: warning
+        scope: 'doc(section > :is(h2, h3))'
+        tokens:
+          - Draft
+      styles/L/Empty.yml: |
+        extends: existence
+        message: "'%s' right after a heading."
+        level: warning
+        scope: 'doc(section:has(> h2 + p:contains("nothing")))'
+        tokens:
+          - Nothing
+      test.md: |
+        # Title
+
+        ## Methods
+
+        We did things.
+
+        ### Draft notes
+
+        Nothing.
+
+        ## Draft results
+
+        Nothing.
+    args: test.md
+    exit: 1
+    want: |
+      test.md:3:4:L.Methods:Methods says nothing about blinding.
+      test.md:7:5:L.Either:'Draft' in a section heading.
+      test.md:11:4:L.Either:'Draft' in a section heading.
+      test.md:13:1:L.Empty:'Nothing' right after a heading.

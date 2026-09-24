@@ -3,7 +3,6 @@ package check
 import (
 	"fmt"
 	"hash/fnv"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -262,17 +261,64 @@ func docID(sel string) string {
 	return fmt.Sprintf("%08x", h.Sum32())
 }
 
-// reHasChild is the standard spelling of "has a child matching", which
-// cascadia only knows by its own name.
-var reHasChild = regexp.MustCompile(`:has\(\s*>\s*`)
-
 // compileSelector parses a `doc(...)` selector.
 //
 // A group, `h2, h3`, is accepted at the top level as it is inside `:has()`:
 // the single-selector parser stopped at the comma and reported the rest as
 // left over.
 func compileSelector(sel string) (cascadia.Matcher, error) {
-	return cascadia.ParseGroup(reHasChild.ReplaceAllString(sel, ":haschild("))
+	return cascadia.ParseGroup(standardSelector(sel))
+}
+
+// standardSelector spells the parts of Selectors Level 4 that cascadia does
+// not parse in the parts it does.
+//
+// `:is(a, b)` and `:where(a, b)` match an element that matches any of the
+// group, which is `:not(:not(a, b))` exactly; they differ only in
+// specificity, which nothing here reads. The rewrite walks the selector
+// rather than matching it, so a `:is(` inside a quoted string, as in
+// `:contains(":is(")`, is left alone and the closing parenthesis it adds
+// lands on the one that closes the pseudo-class.
+func standardSelector(sel string) string {
+	var out strings.Builder
+	var quote rune
+	var extra []int // the depth at which each added `:not(` closes
+	depth := 0
+
+	for i := 0; i < len(sel); {
+		r := rune(sel[i])
+		switch {
+		case quote != 0:
+			if r == quote {
+				quote = 0
+			}
+		case r == '"' || r == '\'':
+			quote = r
+		case r == ':':
+			for _, name := range []string{":is(", ":where("} {
+				if len(sel)-i >= len(name) && strings.EqualFold(sel[i:i+len(name)], name) {
+					out.WriteString(":not(:not(")
+					depth++
+					extra = append(extra, depth)
+					i += len(name)
+					goto next
+				}
+			}
+		case r == '(':
+			depth++
+		case r == ')':
+			if n := len(extra); n > 0 && extra[n-1] == depth {
+				out.WriteByte(')')
+				extra = extra[:n-1]
+			}
+			depth--
+		}
+		out.WriteByte(sel[i])
+		i++
+	next:
+	}
+
+	return out.String()
 }
 
 // DocSelectors returns the selectors named by `doc(...)` terms in a scope,
