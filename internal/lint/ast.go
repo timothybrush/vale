@@ -355,9 +355,7 @@ func (l *Linter) lintScope(f *core.File, state *walker, txt string) error {
 	for _, tag := range state.tagHistory {
 		scope, match := tagToScope[tag]
 		if (match && !core.StringInSlice(tag, inlineTags)) || heading.MatchString(tag) {
-			if scope == "text.blockquote" || scope == "text.list" {
-				f.Summary.WriteString(txt + "\n\n")
-			}
+			summarized := scope == "text.blockquote" || scope == "text.list"
 
 			if !match {
 				scope = "text.heading." + tag
@@ -370,6 +368,9 @@ func (l *Linter) lintScope(f *core.File, state *walker, txt string) error {
 			shift -= len(txt)
 
 			b := state.block(txt, withClasses(scope, state)+f.MetaScope+f.RealExt, shift)
+			if summarized {
+				summarize(f, strings.Repeat(" ", shift)+txt, b, shift)
+			}
 			b.Inline = inlineRuns(state.inline, b.Text, shift)
 			state.gather(txt, b.Line, metric)
 
@@ -398,8 +399,6 @@ func (l *Linter) lintScope(f *core.File, state *walker, txt string) error {
 		}
 	}
 
-	f.Summary.WriteString(txt + "\n\n")
-
 	// Counted here, and not from the summary: quotes and list items share the
 	// summary so that readability metrics see all of a document's prose, but
 	// `paragraphs` means what the `paragraph` scope reaches -- this branch.
@@ -413,12 +412,31 @@ func (l *Linter) lintScope(f *core.File, state *walker, txt string) error {
 	shift -= len(txt)
 
 	b := state.block(txt, withClasses("text", state)+f.MetaScope+f.RealExt, shift)
+	summarize(f, strings.Repeat(" ", shift)+txt, b, shift)
 	b.Inline = inlineRuns(state.inline, b.Text, shift)
 	state.gather(txt, b.Line, "paragraphs")
 	if err := l.lintProse(f, b, state.lines, true); err != nil {
 		return err
 	}
 	return l.lintInline(f, state, b, state.lines, shift)
+}
+
+// summarize adds a block's text to the file's summary, recording where in
+// the source each part of it sits. txt is what the summary receives and blk
+// the block made from it, whose text begins shift bytes in.
+func summarize(f *core.File, txt string, blk nlp.Block, shift int) {
+	at := f.Summary.Len() + shift
+	f.Summary.WriteString(txt + "\n\n")
+
+	if blk.Offset >= 0 {
+		f.SummaryRuns = append(f.SummaryRuns,
+			nlp.Run{At: at, Src: blk.Offset, N: len(blk.Text)})
+		return
+	}
+	for _, r := range blk.Runs {
+		f.SummaryRuns = append(f.SummaryRuns,
+			nlp.Run{At: at + r.At, Src: r.Src, N: r.N})
+	}
 }
 
 // lintInline lints the inline elements captured inside blk -- link text, bold
@@ -530,6 +548,7 @@ func (l *Linter) lintSizedScopes(f *core.File) error {
 	// TODO: is this the most efficient place to assign tagging?
 	summary := nlp.NewLinedBlock(f.Content, f.Summary.String(),
 		"summary"+f.RealExt, 0)
+	summary.Runs = f.SummaryRuns
 	summary.Metrics = f.Metrics
 
 	for _, blk := range []nlp.Block{summary} {

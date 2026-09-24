@@ -26,8 +26,17 @@ var commentControlMatchesRE = regexp.MustCompile(`^vale (.+\..+)(\[.+\]) = (YES|
 
 // A File represents a linted text file.
 type File struct {
-	NLP        nlp.Info          // -
-	Summary    bytes.Buffer      // holds content to be included in summarization checks
+	NLP     nlp.Info     // -
+	Summary bytes.Buffer // holds content to be included in summarization checks
+
+	// SummaryRuns place the summary's text in Content: each piece of prose
+	// written to Summary records where it came from, so that a match found in
+	// the summary can be reported at the text that was counted. Without them
+	// the match is located by searching Content for its text, and a copy in
+	// front matter, a code block or a heading -- none of which the summary
+	// holds -- takes the alert. See #1191.
+	SummaryRuns []nlp.Run
+
 	Alerts     []Alert           // all alerts associated with this file
 	BaseStyles []string          // base style assigned in .vale
 	Lines      []string          // the File's Content split into lines
