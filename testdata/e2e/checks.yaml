@@ -146,6 +146,43 @@ cases:
       test.md:9:6:write-good.E-Prime:Avoid using "is"
       test.md:9:28:vale.Spacing:Use exactly one space between sentences and clauses. Check 'e.A' for spacing problems.
 
+  - name: existence-wrapped-line
+    about: "#1185 -- a token that spans a line break matches the same in a
+      paragraph, a list item, and a blockquote: the source's indentation and
+      quote markers after the break do not keep the alert from being placed."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.md]
+        BasedOnStyles = T
+      styles/T/Phrase.yml: |
+        extends: existence
+        message: "found '%s'"
+        level: warning
+        tokens:
+          - 'the\s+old\s+model'
+      wrap.md: |
+        Paragraph: this is the old
+        model here.
+
+        - Bullet: this is the old
+          model here.
+
+        > Quote: this is the old
+        > model here.
+
+        1. Numbered: this is the old
+           model here.
+    args: wrap.md
+    exit: 0
+    want: |
+      wrap.md:1:20:T.Phrase:found 'the old model'
+      wrap.md:4:19:T.Phrase:found 'the old model'
+      wrap.md:7:18:T.Phrase:found 'the old model'
+      wrap.md:10:22:T.Phrase:found 'the old model'
+
   - name: existence-raw-percent
     about: "a raw pattern is joined into a printf template, so a `%` in it
       was read as a verb and the rule never matched"

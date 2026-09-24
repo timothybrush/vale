@@ -130,6 +130,11 @@ func quoteTolerantPattern(s string) string {
 			b.WriteString(`['\x{2018}\x{2019}]`)
 		case '"':
 			b.WriteString(`["\x{201c}\x{201d}]`)
+		case '\n':
+			// A line break in a match is a break in the block's text; in the
+			// source it may be followed by a list item's indentation or a
+			// blockquote's `>`, which the block's text does not carry.
+			b.WriteString(`\n(?:[ \t]|>)*`)
 		default:
 			b.WriteString(regexp.QuoteMeta(string(r)))
 		}
@@ -289,6 +294,16 @@ func located(ctx string, idx int, sub string, shift int) (int, string, int) {
 // occurrence when hit is not where it was found.
 func maskMatch(ctx, match string, hit int) string {
 	end := hit + len(match)
+	if hit >= 0 && hit <= len(ctx) && strings.Contains(match, "\n") &&
+		(end > len(ctx) || ctx[hit:end] != match) {
+		// A wrapped match reads past the source's indentation or quote
+		// markers, so the text at hit is longer than the match.
+		pat := regexp.MustCompile(`^` + quoteTolerantPattern(match))
+		if fs := pat.FindStringIndex(ctx[hit:]); fs != nil {
+			end = hit + fs[1]
+			match = ctx[hit:end]
+		}
+	}
 	if hit < 0 || end > len(ctx) || ctx[hit:end] != match {
 		masked, _ := Substitute(ctx, match, '#')
 		return masked

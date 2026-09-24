@@ -413,3 +413,30 @@ func TestLocateMatchThroughMultiByteMask(t *testing.T) {
 		t.Errorf("got pos %d hit %d, want 7 and 8", pos, hit)
 	}
 }
+
+// A match that wraps across a line break is placed although the source's
+// next line starts with a list item's indentation or a blockquote's marker,
+// which the block's text does not carry. See #1185.
+func TestLocateMatchWrappedLine(t *testing.T) {
+	a := Alert{Match: "the old\nmodel", Span: []int{16, 29}}
+	txt := "Bullet: this is the old\nmodel here."
+
+	for _, tc := range []struct {
+		ctx  string
+		want int
+	}{
+		{"- Bullet: this is the old\n  model here.\n", 19},
+		{"> Bullet: this is the old\n> model here.\n", 19},
+		{"> > Bullet: this is the old\n> > model here.\n", 21},
+	} {
+		pos, _, hit := locateMatch(tc.ctx, txt, a, -1)
+		if pos != tc.want || hit != tc.want-1 {
+			t.Errorf("%q: got pos %d hit %d, want %d and %d", tc.ctx, pos, hit, tc.want, tc.want-1)
+		}
+		masked := maskMatch(tc.ctx, a.Match, hit)
+		if strings.Contains(masked, "old") || strings.Contains(masked, "model") ||
+			!strings.Contains(masked, "here.") {
+			t.Errorf("%q: maskMatch = %q", tc.ctx, masked)
+		}
+	}
+}
