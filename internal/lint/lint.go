@@ -305,6 +305,10 @@ func (l *Linter) lintFile(src string) lintResult {
 		// A Vale rule: its message and description are prose, and its
 		// tokens and swaps are not.
 		err = l.lintRule(file)
+	} else if file.Format == "data" && !simple && l.hasCodeView(file) {
+		// A data file a tree-sitter View names is read as code, so the
+		// View's queries reach its comments. See #1188.
+		err = l.lintCode(file)
 	} else if file.Format == "data" && !simple && hasViews {
 		err = l.lintData(file)
 	} else if file.Format == "code" && !simple {

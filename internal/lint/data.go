@@ -64,8 +64,24 @@ func (l *Linter) lintRule(f *core.File) error {
 	return l.lintScopedValues(f, found)
 }
 
+// hasCodeView reports whether a tree-sitter view applies to the file.
+func (l *Linter) hasCodeView(f *core.File) bool {
+	for syntax, view := range l.Manager.Config.Views {
+		if view.Engine != "tree-sitter" {
+			continue
+		}
+		if sec, err := glob.Compile(syntax); err == nil && sec.Match(f.Path) {
+			return true
+		}
+	}
+	return false
+}
+
 func (l *Linter) lintData(f *core.File) error {
 	for syntax, view := range l.Manager.Config.Views {
+		if view.Engine == "tree-sitter" {
+			continue
+		}
 		sec, err := glob.Compile(syntax)
 		if err != nil {
 			return err

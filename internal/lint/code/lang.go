@@ -75,7 +75,7 @@ func GetLanguageFromExt(ext string) (*Language, error) {
 		return QML(), nil
 	case ".r":
 		return R(), nil
-	case ".yml":
+	case ".yml", ".yaml":
 		return YAML(), nil
 	case ".css":
 		return CSS(), nil
