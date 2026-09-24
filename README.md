@@ -24,7 +24,8 @@
     <a href="https://vale.sh/explorer">Package Explorer</a> ·
     <a href="https://studio.vale.sh">Vale Studio</a> ·
     <a href="https://cms.vale.sh">Vale CMS</a> ·
-    <a href="https://vale.sh/blog">Blog</a>
+    <a href="https://vale.sh/blog">Blog</a> ·
+    <a href="https://discord.gg/NTX6Xggryj">Discord</a>
   </p>
 </div>
 
