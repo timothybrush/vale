@@ -1457,6 +1457,42 @@ cases:
       test.mdx:3:23:Vale.Spelling:Did you really mean 'Deprecatedd'?
       test.mdx:3:53:Vale.Spelling:Did you really mean 'lastt'?
 
+  - name: mdx/one-line-element-then-fence
+    about: "#1194 -- a one-line element with text is a paragraph holding an
+      inline element, and the code fence on the line after it is code. The
+      HTML block parser used to take the line and run to the next blank line,
+      fence and all."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.mdx]
+        BasedOnStyles = T
+      styles/T/Rule.yml: |
+        extends: existence
+        message: "found %s"
+        level: error
+        nonword: true
+        tokens:
+          - gItHuB
+          - scm
+          - nonprodAccount
+          - clickk
+      test.mdx: |
+        <details>
+          <summary>[`gItHuB` example][example] --- I am long, clickk me to expand</summary>
+        ```hcl
+            "scm": {
+              "account": "{{ $nonprodAccount }}"
+            }
+        ```
+        </details>
+    args: --output=line test.mdx
+    exit: 1
+    want: |
+      test.mdx:2:55:T.Rule:found clickk
+
   - name: mdx/located-past-markup
     about: "An alert is placed by searching the source for its text, and the
       search skips JSX tags, expressions, ESM, and fenced code. A heading

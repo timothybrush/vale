@@ -184,9 +184,30 @@ func mdxBlockParsers() []util.PrioritizedValue {
 		util.Prioritized(mdxIndented{parser.NewATXHeadingParser()}, 600),
 		util.Prioritized(mdxIndented{parser.NewFencedCodeBlockParser()}, 700),
 		util.Prioritized(mdxIndented{parser.NewBlockquoteParser()}, 800),
-		util.Prioritized(mdxIndented{parser.NewHTMLBlockParser()}, 900),
+		util.Prioritized(mdxIndented{mdxHTMLBlock{parser.NewHTMLBlockParser()}}, 900),
 		util.Prioritized(mdxIndented{parser.NewParagraphParser()}, 1000),
 	}
+}
+
+// An mdxHTMLBlock is the HTML block parser, declining the line the JSX flow
+// parser declined: a one-line element with text between its tags, which MDX
+// reads as a paragraph holding an inline element. Left to the HTML block
+// parser, `<summary>Click me</summary>` opened a block that ran to the next
+// blank line, and a code fence on the line after it was read as prose.
+type mdxHTMLBlock struct {
+	parser.BlockParser
+}
+
+func (b mdxHTMLBlock) Open(parent ast.Node, reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
+	line, _ := reader.PeekLine()
+	if pos := pc.BlockOffset(); pos >= 0 && opensJsx(line, pos) {
+		var s mdxJsxScan
+		if end := mdxTagEnd(line[pos:], &s); end >= 0 &&
+			(s.done || mdxDoneOnLine(s, line[pos+end:])) && mdxHasText(line[pos+end:]) {
+			return nil, parser.NoChildren
+		}
+	}
+	return b.BlockParser.Open(parent, reader, pc)
 }
 
 // An mdxIndented wraps a block parser so that indentation of four or more
