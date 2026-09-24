@@ -405,13 +405,20 @@ func (l *Linter) lintScope(f *core.File, state *walker, txt string) error {
 	// `paragraphs` means what the `paragraph` scope reaches -- this branch.
 	f.Metrics["paragraphs"]++
 
-	b := state.block(txt, withClasses("text", state)+f.MetaScope+f.RealExt, 0)
-	b.Inline = inlineRuns(state.inline, b.Text, 0)
+	// The space `clean` puts before inline content that opens the paragraph
+	// is not in the source; left on, it places the block wherever the text
+	// next follows a space. See #1186.
+	shift := len(txt)
+	txt = strings.TrimLeft(txt, " ")
+	shift -= len(txt)
+
+	b := state.block(txt, withClasses("text", state)+f.MetaScope+f.RealExt, shift)
+	b.Inline = inlineRuns(state.inline, b.Text, shift)
 	state.gather(txt, b.Line, "paragraphs")
 	if err := l.lintProse(f, b, state.lines, true); err != nil {
 		return err
 	}
-	return l.lintInline(f, state, b, state.lines, 0)
+	return l.lintInline(f, state, b, state.lines, shift)
 }
 
 // lintInline lints the inline elements captured inside blk -- link text, bold

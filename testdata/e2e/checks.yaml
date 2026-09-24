@@ -183,6 +183,49 @@ cases:
       wrap.md:7:18:T.Phrase:found 'the old model'
       wrap.md:10:22:T.Phrase:found 'the old model'
 
+  - name: existence-link-only-paragraph
+    about: "#1186 -- a paragraph that opens with inline content is placed at
+      its own source text, not at the next place the same text follows a
+      space; a later repeat of the match is reported as well as the first."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.md]
+        BasedOnStyles = T
+      styles/T/Phrase.yml: |
+        extends: existence
+        message: "found '%s'"
+        level: warning
+        tokens:
+          - 'the\s+old\s+model'
+          - legacy
+      drop.md: |
+        [the old model](https://example.com/)
+
+        Later the old model again.
+      drop2.md: |
+        Earlier the old model in prose.
+
+        [the old model](https://example.com/)
+      fm.md: |
+        ---
+        title: The legacy title
+        description: A legacy description.
+        ---
+
+        Body.
+    args: .
+    exit: 0
+    want: |
+      drop.md:1:2:T.Phrase:found 'the old model'
+      drop.md:3:7:T.Phrase:found 'the old model'
+      drop2.md:1:9:T.Phrase:found 'the old model'
+      drop2.md:3:2:T.Phrase:found 'the old model'
+      fm.md:2:12:T.Phrase:found 'legacy'
+      fm.md:3:16:T.Phrase:found 'legacy'
+
   - name: existence-raw-percent
     about: "a raw pattern is joined into a printf template, so a `%` in it
       was read as a verb and the rule never matched"
