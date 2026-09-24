@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -239,6 +241,34 @@ func rstInterpreter(exe string) string {
 	return python
 }
 
+// hasShebang reports whether exe begins with `#!`, naming an interpreter.
+func hasShebang(exe string) bool {
+	resolved, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		return false
+	}
+	file, err := os.Open(resolved)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	head := make([]byte, 2)
+	n, _ := io.ReadFull(file, head)
+	return n == 2 && string(head) == "#!"
+}
+
+// pythonWith finds a Python on PATH that can import module, or "".
+func pythonWith(module string) string {
+	for _, name := range []string{"python3", "python", "py"} {
+		if p := system.Which([]string{name}); p != "" &&
+			exec.Command(p, "-c", "import "+module).Run() == nil {
+			return p
+		}
+	}
+	return ""
+}
+
 // rstFastPath returns the argv prefix for converting through a long-lived
 // interpreter, or nil when that could not be established.
 func rstFastPath(exe string) []string {
@@ -257,8 +287,17 @@ func rstFastPath(exe string) []string {
 // that a spawned rst2html would have converted differently. On Windows it
 // picked up an interpreter where the two disagree about output encoding, and
 // the same document came back as `naïve` one way and `naÃ¯ve` the other.
+//
+// The one exception is a script with no shebang at all: on Windows, pip
+// installs rst2html as a launcher executable, which names nothing to read,
+// and the spawned fallback cannot register the directives a Sphinx project
+// needs. There, a Python on PATH that imports Docutils is tried, and the
+// round trip below, with its non-ASCII character, guards the encoding.
 func rstProbe(exe string) []string {
 	python := rstInterpreter(exe)
+	if python == "" && !hasShebang(exe) {
+		python = pythonWith("docutils")
+	}
 	if python == "" {
 		return nil
 	}
