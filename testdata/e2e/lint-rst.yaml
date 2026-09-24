@@ -16,7 +16,7 @@ cases:
 
   - name: sphinx
     about: "#294 -- the body of a directive Docutils does not define is prose:
-      Sphinx's own, and a project's. `[docutils]` names the ones that are code
+      Sphinx's own, and a project's. `[sphinx]` names the ones that are code
       instead, and the roles whose text is prose. A literal, a code block, a
       toctree and a `vale off` block are not read."
     args: sphinx.rst

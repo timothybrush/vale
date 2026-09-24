@@ -201,7 +201,7 @@ type Config struct {
 	Checks            []string                     // All checks to load
 	Formats           map[string]string            // A map of unknown -> known formats
 	Asciidoctor       map[string]string            // A map of asciidoctor attributes
-	Docutils          map[string]string            // Settings for reading reStructuredText
+	Sphinx            map[string]string            // The `[sphinx]` section: a project's directives and roles
 	FormatToLang      map[string]string            // A map of format to lang ID
 	GBaseStyles       []string                     // Global base style
 	GChecks           map[string]bool              // Global checks
@@ -257,7 +257,7 @@ func NewConfig(flags *CLIFlags) (*Config, error) {
 	cfg.Flags = flags
 	cfg.Formats = make(map[string]string)
 	cfg.Asciidoctor = make(map[string]string)
-	cfg.Docutils = make(map[string]string)
+	cfg.Sphinx = make(map[string]string)
 	cfg.GChecks = make(map[string]bool)
 	cfg.MinAlertLevel = 0
 	cfg.RuleToLevel = make(map[string]string)
@@ -451,4 +451,15 @@ func MockLoad(project, local string, cfg *Config) error {
 
 	_, err = processConfig(uCfg, cfg, true)
 	return err
+}
+
+// SphinxNames returns one list from the `[sphinx]` section, lowercased.
+func (c *Config) SphinxNames(key string) []string {
+	out := []string{}
+	for _, n := range strings.Split(c.Sphinx[key], ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			out = append(out, strings.ToLower(n))
+		}
+	}
+	return out
 }

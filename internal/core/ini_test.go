@@ -485,10 +485,10 @@ func Test_processConfig_laterSourceWins(t *testing.T) {
 	}
 }
 
-// A `[docutils]` section is kept for the reStructuredText server, and a key
-// it doesn't define is dropped with a warning rather than passed along.
-func Test_processConfig_docutils(t *testing.T) {
-	body := `[docutils]
+// A `[sphinx]` section is kept for the reStructuredText and MyST readers, and
+// a key it doesn't define is dropped with a warning rather than passed along.
+func Test_processConfig_sphinx(t *testing.T) {
+	body := `[sphinx]
 CodeDirectives = mermaid, plantuml
 ProseRoles = kbd
 Unknown = x
@@ -511,10 +511,10 @@ BasedOnStyles = Vale
 	}
 
 	want := map[string]string{"CodeDirectives": "mermaid, plantuml", "ProseRoles": "kbd"}
-	if fmt.Sprint(conf.Docutils) != fmt.Sprint(want) {
-		t.Errorf("Docutils = %v, want %v", conf.Docutils, want)
+	if fmt.Sprint(conf.Sphinx) != fmt.Sprint(want) {
+		t.Errorf("Sphinx = %v, want %v", conf.Sphinx, want)
 	}
-	if _, found := conf.SecToPat["docutils"]; found {
-		t.Error("the docutils section was compiled as a file glob")
+	if _, found := conf.SecToPat["sphinx"]; found {
+		t.Error("the sphinx section was compiled as a file glob")
 	}
 }

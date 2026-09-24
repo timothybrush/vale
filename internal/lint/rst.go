@@ -50,7 +50,7 @@ var rstArgs = []string{
 // the body of an unknown directive is prose, except for a named few holding
 // code, data, or generated content, and the text of an unknown role is code,
 // except for the reference and interface roles, whose text is prose. A
-// project's `[docutils]` section adds to both lists; the first argument
+// project's `[sphinx]` section adds to both lists; the first argument
 // carries it as JSON, and the Docutils flags follow. See #294.
 const rstServer = `import json, re, sys
 from docutils import nodes
@@ -318,7 +318,7 @@ func (l *Linter) lintRST(f *core.File) error {
 // be reached directly.
 func (l *Linter) callRst(text, exe string) (string, error) {
 	if direct := rstFastPath(exe); direct != nil {
-		attrs := rstAttrs(l.docutilsConfig())
+		attrs := rstAttrs(l.sphinxConfig())
 		l.rstOnce.Do(func() {
 			pool, err := newProcPool(direct, attrs, l.poolSize())
 			if err == nil {
@@ -343,26 +343,17 @@ func (l *Linter) callRst(text, exe string) (string, error) {
 	return rstBody(html), nil
 }
 
-// rstAttrs is the server's argument list: the `[docutils]` section as JSON,
+// rstAttrs is the server's argument list: the `[sphinx]` section as JSON,
 // then the Docutils flags.
 func rstAttrs(config string) []string {
 	return append([]string{config}, rstArgs...)
 }
 
-// docutilsConfig is the `[docutils]` section as the server reads it.
-func (l *Linter) docutilsConfig() string {
-	names := func(key string) []string {
-		out := []string{}
-		for _, n := range strings.Split(l.Manager.Config.Docutils[key], ",") {
-			if n = strings.TrimSpace(n); n != "" {
-				out = append(out, strings.ToLower(n))
-			}
-		}
-		return out
-	}
+// sphinxConfig is the `[sphinx]` section as the server reads it.
+func (l *Linter) sphinxConfig() string {
 	cfg, _ := json.Marshal(map[string][]string{
-		"code":  names("CodeDirectives"),
-		"prose": names("ProseRoles"),
+		"code":  l.Manager.Config.SphinxNames("CodeDirectives"),
+		"prose": l.Manager.Config.SphinxNames("ProseRoles"),
 	})
 	return string(cfg)
 }

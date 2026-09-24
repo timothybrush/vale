@@ -7,6 +7,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 	grh "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 
@@ -57,7 +58,7 @@ func (l *Linter) lintMarkdownWith(f *core.File, md goldmark.Markdown) error {
 	}
 
 	src := []byte(s)
-	doc := md.Parser().Parse(text.NewReader(src))
+	doc := md.Parser().Parse(text.NewReader(src), parser.WithContext(l.mystContext()))
 	if err = md.Renderer().Render(&buf, src, doc); err != nil {
 		return core.NewE100(f.Path, err)
 	}
@@ -66,7 +67,7 @@ func (l *Linter) lintMarkdownWith(f *core.File, md goldmark.Markdown) error {
 		// The transform rewrites the front matter, so the spans of the
 		// parsed text are not the file's; the file is parsed again for them.
 		if s != f.Content {
-			doc = md.Parser().Parse(text.NewReader([]byte(f.Content)))
+			doc = md.Parser().Parse(text.NewReader([]byte(f.Content)), parser.WithContext(l.mystContext()))
 		}
 		f.Content = maskSpans(f.Content, mdxTagMasks(doc))
 	}

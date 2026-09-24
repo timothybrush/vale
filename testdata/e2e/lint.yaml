@@ -255,13 +255,15 @@ cases:
       - FIXME
 
   - name: myst
-    about: "#667 -- MyST-only syntax is markup, not prose: targets, roles,
-      comments, options, and block breaks say nothing, directive content is
-      linted, and literal directives stay skipped"
+    about: "#667 -- MyST-only syntax is markup, not prose: targets, comments,
+      options, and block breaks say nothing, a role's content is code unless
+      the role carries prose, as `term` does, directive content is linted,
+      and literal directives stay skipped"
     args: test.myst
     exit: 0
     want: |
       test.myst:13:19:vale.Annotations:'TODO' left in text
+      test.myst:13:59:vale.Annotations:'FIXME' left in text
       test.myst:29:26:vale.Annotations:'XXX' left in text
       test.myst:33:19:vale.Annotations:'TODO' left in text
       test.myst:38:30:vale.Annotations:'XXX' left in text
@@ -272,8 +274,67 @@ cases:
       test.myst:86:23:vale.Annotations:'TODO' left in text
       test.myst:97:7:vale.Annotations:'XXX' left in text
     absent:
-      - FIXME
       - NOTE
+
+  - name: myst-sphinx
+    about: "a MyST project reads the same `[sphinx]` section as a
+      reStructuredText one: a directive's content is prose unless the
+      directive is code, built in or configured, and a role's content is code
+      unless the role carries prose, built in or configured. A titled
+      reference is linted as its title; a bare target is not."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+
+        [formats]
+        md = myst
+
+        [sphinx]
+        CodeDirectives = plantuml
+        ProseRoles = kbd
+
+        [*.md]
+        T.Rule = YES
+      styles/T/Rule.yml: |
+        extends: existence
+        message: "found %s"
+        level: error
+        tokens:
+          - wombat
+      doc.md: |
+        # Title
+
+        A paragraph with a wombat.
+
+        ```{versionadded} 1.2
+        The wombat arrived here.
+        ```
+
+        ```{tab-item} Linux
+        A custom directive with a wombat.
+        ```
+
+        ```{plantuml}
+        wombat -> here
+        ```
+
+        ```{mermaid}
+        graph wombat
+        ```
+
+        See {ref}`the wombat guide <target>` and {doc}`wombat/path` and {term}`wombat` and {kbd}`press wombat` and {func}`wombat` and {py:class}`wombat.Client`.
+
+        Trailing wombat.
+    args: doc.md
+    exit: 1
+    want: |
+      doc.md:3:20:T.Rule:found wombat
+      doc.md:6:5:T.Rule:found wombat
+      doc.md:10:27:T.Rule:found wombat
+      doc.md:21:15:T.Rule:found wombat
+      doc.md:21:48:T.Rule:found wombat
+      doc.md:21:72:T.Rule:found wombat
+      doc.md:23:10:T.Rule:found wombat
 
   - name: typst
     about: "#651 -- Typst parses through typst2vast, the compiler's own
