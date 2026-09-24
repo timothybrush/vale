@@ -34,6 +34,10 @@ var rstArgs = []string{
 	"--no-toc-backlinks",
 	"--no-footnote-backlinks",
 	"--no-section-numbering",
+	// A document is UTF-8 whatever the console's code page: without these,
+	// rst2html on Windows reads stdin as cp1252 and writes the mojibake out.
+	"--input-encoding=utf-8",
+	"--output-encoding=utf-8",
 }
 
 // Converting a document with Docutils takes a few milliseconds; starting
