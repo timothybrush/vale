@@ -32,6 +32,17 @@ type Language struct {
 	Queries []core.Scope
 	Cutset  string
 	Padding padding
+	// Directive matches a comment addressed to a tool -- a build constraint,
+	// a linter suppression -- which is dropped rather than read. It is
+	// matched against the comment as written, delimiter included.
+	Directive *regexp.Regexp
+	// Doc masks what the language's documentation convention marks as code:
+	// the tags of Javadoc, the links of rustdoc. See doc.go.
+	Doc func(string) []Mask
+	// DocName is the name a documentation comment is expected to open with,
+	// read from the node it precedes; nil for a language with no such
+	// convention.
+	DocName func(*sitter.Node, []byte) string
 }
 
 // GetLanguageFromExt returns a Language based on the given file extension.

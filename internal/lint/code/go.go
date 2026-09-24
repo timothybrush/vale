@@ -13,5 +13,10 @@ func Go() *Language {
 		Parser:  golang.GetLanguage(),
 		Queries: []core.Scope{{Name: "", Expr: "(comment) @comment", Type: ""}},
 		Padding: cStyle,
+		// A doc comment opens with the name it documents and links to
+		// others in brackets; a `//go:` line is a directive.
+		Directive: goDirective,
+		Doc:       GoDoc,
+		DocName:   goDocName,
 	}
 }

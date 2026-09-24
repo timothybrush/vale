@@ -21,7 +21,8 @@ var skipTags = []string{"script", "style", "pre", "figure", "noscript", "iframe"
 var skipClasses = []string{"problematic", "pre", "code"}
 var inlineTags = []string{
 	"b", "big", "i", "small", "abbr", "acronym", "cite", "dfn", "em", "kbd",
-	"strong", "a", "br", "img", "span", "sub", "sup", "code", "tt", "del", "q"}
+	"strong", "a", "br", "img", "span", "sub", "sup", "code", "tt", "del", "q",
+	"samp", "var"}
 
 // voidTags never carry content, so they are never "open" as containers.
 var voidTags = []string{
@@ -81,7 +82,7 @@ func (l *Linter) lintHTMLTokens(f *core.File, raw []byte, offset int) error { //
 		skipClasses = append(skipClasses, l.Manager.Config.IgnoredClasses...)
 	}
 
-	skipped := []string{"tt", "code", "kbd"}
+	skipped := []string{"tt", "code", "kbd", "samp"}
 	if len(l.Manager.Config.IgnoredScopes) > 0 {
 		skipped = l.Manager.Config.IgnoredScopes
 	}
@@ -126,6 +127,14 @@ func (l *Linter) lintHTMLTokens(f *core.File, raw []byte, offset int) error { //
 
 		blockSkip := skipClass && !core.StringInSlice(txt, inlineTags)
 		if tokt == html.ErrorToken { //nolint:gocritic
+			// Text with no element around it -- a fragment that is a bare
+			// paragraph, as a Javadoc description is -- is flushed by the
+			// end of the input, since no closing tag will.
+			if content := buf.String(); strings.TrimSpace(content) != "" {
+				if err := l.lintScope(f, walker, content); err != nil {
+					return err
+				}
+			}
 			break
 		} else if tokt == html.StartTagToken && !core.StringInSlice(txt, inlineTags) &&
 			(core.StringInSlice(txt, skipTags) || blockSkip) {

@@ -2027,3 +2027,124 @@ cases:
       story.txt:5:8:M.Very:'very' outside speech.
       story.txt:9:29:M.Very:'very' outside speech.
       story.txt:11:1:M.Chapter:A chapter of 4.00 words.
+
+  - name: org-keywords
+    about: |
+      The title and author keywords are prose and a headline's tags are not,
+      and a footnote's definition is reported where the source has it rather
+      than at the end of the document, where the converter puts it.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.org]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+      styles/.keep: ""
+      notes.org: |
+        #+TITLE: A guide to the storag layer
+        #+AUTHOR: Josph
+        #+OPTIONS: toc:nil
+
+        * Setup :urgnt:
+
+        The cache is optionl.[fn:1] It can be inlned.[fn:: An inlne note.]
+
+        [fn:1] The defalt is read once.
+
+        More text follows the fotnote.
+    args: notes.org
+    exit: 1
+    want: |
+      notes.org:1:25:Vale.Spelling:Did you really mean 'storag'?
+      notes.org:2:11:Vale.Spelling:Did you really mean 'Josph'?
+      notes.org:7:14:Vale.Spelling:Did you really mean 'optionl'?
+      notes.org:7:39:Vale.Spelling:Did you really mean 'inlned'?
+      notes.org:7:55:Vale.Spelling:Did you really mean 'inlne'?
+      notes.org:9:12:Vale.Spelling:Did you really mean 'defalt'?
+      notes.org:11:23:Vale.Spelling:Did you really mean 'fotnote'?
+
+  - name: html-samp
+    about: "`samp` holds sample output, and is ignored like `code` and `kbd`."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.html]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+      styles/.keep: ""
+      page.html: |
+        <p>Press <kbd>Ctrl</kbd> and read <samp>okk: ready</samp>, then see the resutl.</p>
+    args: page.html
+    exit: 1
+    want: |
+      page.html:1:73:Vale.Spelling:Did you really mean 'resutl'?
+
+  - name: code-conventions
+    about: |
+      A doc comment's convention is not prose: a Go doc comment opens with
+      the name it documents and links in brackets, JSDoc and reStructuredText
+      docstrings tag their parameters, and a directive addressed to a tool is
+      not read at all.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+      styles/.keep: ""
+      main.go: |
+        //go:build linux || darwn
+
+        // Package demo handls the cache.
+        package demo
+
+        // Reads returns the recrd. See [Reader] and [fmt.Errorf].
+        func Reads() {} //nolint:gocritc
+
+        type T struct {
+        	// Nme is the identifer.
+        	Nme string
+        }
+      app.py: |
+        def f(x):  # noqa: E501 typoo
+            """Reads the recrd.
+
+            :param x: the identifer to look up
+            :raises ValueError: when the boundd is exceeded
+            """
+            return x  # type: ignore
+      app.js: |
+        /**
+         * Reads the recrd.
+         *
+         * @example
+         * const vaule = read(x);
+         *
+         * @param {string} nme - The identifer to look up.
+         * @returns {Promise<object>} The paylod.
+         */
+        function read(nme) {} // eslint-disable-line no-unusd-vars
+    args: main.go app.py app.js
+    exit: 1
+    want: |
+      app.js:2:14:Vale.Spelling:Did you really mean 'recrd'?
+      app.js:7:30:Vale.Spelling:Did you really mean 'identifer'?
+      app.js:8:35:Vale.Spelling:Did you really mean 'paylod'?
+      app.py:2:18:Vale.Spelling:Did you really mean 'recrd'?
+      app.py:4:19:Vale.Spelling:Did you really mean 'identifer'?
+      app.py:5:34:Vale.Spelling:Did you really mean 'boundd'?
+      main.go:3:17:Vale.Spelling:Did you really mean 'handls'?
+      main.go:6:22:Vale.Spelling:Did you really mean 'recrd'?
+      main.go:10:16:Vale.Spelling:Did you really mean 'identifer'?

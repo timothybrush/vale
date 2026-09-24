@@ -41,7 +41,7 @@ func NewQueryEngine(tree *sitter.Tree, lang *Language) *QueryEngine {
 	}
 }
 
-func (qe *QueryEngine) run(meta string, q *sitter.Query, source []byte) []Comment {
+func (qe *QueryEngine) run(meta, format string, q *sitter.Query, source []byte) []Comment {
 	var comments []Comment
 
 	if meta != "" {
@@ -151,6 +151,11 @@ func (qe *QueryEngine) run(meta string, q *sitter.Query, source []byte) []Commen
 				cText = buf.String()
 			}
 
+			doc := ""
+			if qe.lang.DocName != nil {
+				doc = qe.lang.DocName(c.Node, source)
+			}
+
 			comments = append(comments, Comment{
 				Line:   row + 1,
 				Offset: offset,
@@ -158,6 +163,8 @@ func (qe *QueryEngine) run(meta string, q *sitter.Query, source []byte) []Commen
 				Text:   cText,
 				Source: rText,
 				Strip:  strip,
+				Format: format,
+				Doc:    doc,
 			})
 		}
 	}

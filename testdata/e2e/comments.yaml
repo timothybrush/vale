@@ -89,6 +89,9 @@ cases:
     args: test.org
     exit: 1
     want: |
+      test.org:1:11:demo.CustomCap:'Example Org File' should be in title case
+      test.org:1:11:demo.SentenceCase:'Example Org File' should be sentence-cased
+      test.org:2:11:demo.Filters:Did you really mean 'TEC'?
       test.org:17:21:vale.Redundancy:'ACT test' is redundant
 
   - name: inline-vale-off

@@ -23,5 +23,7 @@ func Kotlin() *Language {
 		Padding: func(s string) int {
 			return computePadding(s, []string{"//", "/*", "/**"})
 		},
+		Directive: kotlinDirective,
+		Doc:       KDoc,
 	}
 }

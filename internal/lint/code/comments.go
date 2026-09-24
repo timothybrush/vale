@@ -26,6 +26,15 @@ type Comment struct {
 	// Not serialised: this is bookkeeping for putting an alert back where it
 	// came from, not part of what a comment is.
 	Strip []int `json:"-"`
+	// Format is the markup the comment is written in, from the query's
+	// `type`; empty for plain lines.
+	Format string `json:"-"`
+	// Doc is the name the comment is expected to open with, when it
+	// documents a declaration. See Language.DocName.
+	Doc string `json:"-"`
+	// Masks are the ranges of Text that hold no prose; an alert inside one
+	// is dropped. See doc.go.
+	Masks []Mask `json:"-"`
 }
 
 // StripAt returns what came off the front of a line, 1-based as alerts are.
@@ -39,11 +48,15 @@ func (c Comment) StripAt(line int) (int, bool) {
 // doneMerging determines when we should *stop* concatenating line-scoped
 // comments.
 func doneMerging(curr, prev Comment) bool {
-	if prev.Line != curr.Line-1 {
+	switch {
+	case prev.Line != curr.Line-1:
 		// If the comments aren't on consecutive lines, don't merge them.
 		return true
-	} else if prev.Offset != curr.Offset {
+	case prev.Offset != curr.Offset:
 		// If the comments aren't at the same offset, don't merge them.
+		return true
+	case prev.Format != curr.Format:
+		// Two queries with different markup: each is read on its own.
 		return true
 	}
 	return false
@@ -118,6 +131,11 @@ func coalesce(comments []Comment) []Comment {
 		} else {
 			tBuf.WriteString(appendLine(comment.Text))
 			sBuf.WriteString(appendLine(comment.Source))
+			// The declaration follows the run's last line, so its name
+			// belongs to the run.
+			if comment.Doc != "" {
+				joined[len(joined)-1].Doc = comment.Doc
+			}
 		}
 	}
 
@@ -156,7 +174,7 @@ func GetComments(source []byte, lang *Language) ([]Comment, error) {
 		if qErr != nil {
 			return comments, qErr
 		}
-		comments = append(comments, engine.run(query.Name, q, source)...)
+		comments = append(comments, engine.run(query.Name, query.Type, q, source)...)
 	}
 
 	if len(lang.Queries) > 1 {
@@ -165,7 +183,32 @@ func GetComments(source []byte, lang *Language) ([]Comment, error) {
 		})
 	}
 
-	return coalesce(dropShebang(comments)), nil
+	joined := coalesce(dropDirectives(dropShebang(comments), lang))
+	for i, c := range joined {
+		if lang.Doc != nil {
+			joined[i].Masks = lang.Doc(c.Text)
+		}
+		if m, ok := leadingMask(c.Text, c.Doc); ok {
+			joined[i].Masks = append(joined[i].Masks, m)
+		}
+	}
+
+	return joined, nil
+}
+
+// dropDirectives removes the comments addressed to a tool rather than a
+// reader. See Language.Directive.
+func dropDirectives(comments []Comment, lang *Language) []Comment {
+	if lang.Directive == nil {
+		return comments
+	}
+	kept := comments[:0:0]
+	for _, c := range comments {
+		if !lang.Directive.MatchString(c.Source) {
+			kept = append(kept, c)
+		}
+	}
+	return kept
 }
 
 // dropShebang removes a leading `#!` line.

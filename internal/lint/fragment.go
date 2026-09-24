@@ -1,7 +1,6 @@
 package lint
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/vale-cli/vale/v3/internal/core"
@@ -113,22 +112,17 @@ func (l *Linter) lintFragments(f *core.File) error {
 		if l.skipsComment(comment.Scope) {
 			continue
 		}
-		f.SetText(comment.Text)
 
-		switch f.NormedExt {
-		case ".md":
-			err = l.lintMarkdown(f)
-		case ".rst":
-			err = l.lintRST(f)
-		case ".adoc":
-			err = l.lintADoc(f)
-		case ".org":
-			err = l.lintOrg(f)
-		case ".qdoc":
-			err = l.lintQDocFragment(f)
-		default:
-			return fmt.Errorf("unsupported markup format '%s'", f.NormedExt)
+		// The file's own mapping, unless the query named a markup of its own.
+		format := comment.Format
+		if format == "" {
+			format = strings.TrimPrefix(f.NormedExt, ".")
 		}
+		err = l.lintComment(f, comment, format)
+		if err != nil {
+			return err
+		}
+		f.Alerts = dropMasked(f.Alerts, last, comment)
 
 		size := len(f.Alerts)
 		if size != last {

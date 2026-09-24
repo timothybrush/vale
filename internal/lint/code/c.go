@@ -15,6 +15,7 @@ func C() *Language {
 		Queries: []core.Scope{
 			{Name: "", Expr: "(comment) @comment", Type: ""},
 		},
-		Padding: cStyle,
+		Padding:   cStyle,
+		Directive: cDirective,
 	}
 }

@@ -433,3 +433,39 @@ cases:
     exit: 2
     contains: |
       no View defines a scope named 'trailer'
+
+  - name: typed-code
+    about: |
+      A tree-sitter scope's `type` names the markup its comments are written
+      in: a fenced block in a Rust doc comment is code, and a bracketed
+      symbol is a link.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.rs]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+        View = Rust
+      styles/config/views/Rust.yml: |
+        engine: tree-sitter
+        scopes:
+          - expr: (line_comment)+ @comment
+            type: md
+      lib.rs: |
+        /// Reads the recrd and returns it.
+        ///
+        /// ```
+        /// let vaule = read(ctx);
+        /// ```
+        ///
+        /// See [`Reader`] and [Writr] for the detials.
+        pub fn read() {}
+    args: lib.rs
+    exit: 1
+    want: |
+      lib.rs:1:15:Vale.Spelling:Did you really mean 'recrd'?
+      lib.rs:7:40:Vale.Spelling:Did you really mean 'detials'?

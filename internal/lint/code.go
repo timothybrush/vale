@@ -71,12 +71,11 @@ func (l *Linter) lintCode(f *core.File) error {
 		if l.skipsComment(comment.Scope) {
 			continue
 		}
-		f.SetText(maskURLs(comment.Text))
-
-		err = l.lintLines(f)
+		err = l.lintComment(f, comment, comment.Format)
 		if err != nil {
 			return err
 		}
+		f.Alerts = dropMasked(f.Alerts, last, comment)
 
 		size := len(f.Alerts)
 		if size != last {
@@ -87,6 +86,62 @@ func (l *Linter) lintCode(f *core.File) error {
 
 	f.SetText(wholeFile)
 	return nil
+}
+
+// dropMasked removes the alerts, from last on, that the comment's
+// documentation convention masks: the symbol a tag names, the body of an
+// example. The alerts are still placed within the comment's text.
+func dropMasked(alerts []core.Alert, last int, comment code.Comment) []core.Alert {
+	if len(comment.Masks) == 0 {
+		return alerts
+	}
+	kept := alerts[:last]
+	for _, a := range alerts[last:] {
+		if !comment.Masked(a.Line, a.Span[0]) {
+			kept = append(kept, a)
+		}
+	}
+	return kept
+}
+
+// lintComment lints one comment as the markup named -- `md`, `rst`, `html`,
+// `org`, `adoc`, or `qdoc` -- or as plain lines when none is.
+//
+// A View's scope names the markup its comments are written in, so a fenced
+// block in a Rust `///` comment is code and a `<pre>` in a Javadoc block is
+// not prose. The file is a fragment of that markup while the comment is
+// read, and itself again afterwards.
+func (l *Linter) lintComment(f *core.File, comment code.Comment, format string) error {
+	if format == "" {
+		f.SetText(maskURLs(comment.Text))
+		return l.lintLines(f)
+	}
+
+	kind, ext := f.Format, f.NormedExt
+	f.Format = "fragment"
+	f.SetNormedExt(format)
+	f.SetText(comment.Text)
+
+	var err error
+	switch f.NormedExt {
+	case ".md":
+		err = l.lintMarkdown(f)
+	case ".rst":
+		err = l.lintRST(f)
+	case ".html":
+		err = l.lintHTML(f)
+	case ".adoc":
+		err = l.lintADoc(f)
+	case ".org":
+		err = l.lintOrg(f)
+	case ".qdoc":
+		err = l.lintQDocFragment(f)
+	default:
+		err = fmt.Errorf("unsupported markup format '%s'", format)
+	}
+
+	f.Format, f.NormedExt = kind, ext
+	return err
 }
 
 // lintCodeOld lints source code by analyzing its comments.
