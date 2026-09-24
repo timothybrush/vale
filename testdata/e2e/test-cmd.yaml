@@ -220,3 +220,53 @@ cases:
     args: test
     exit: 2
     contains: needs one of
+
+  - name: coverage
+    about: "`--coverage` lists the rules under the given paths that no case
+      made fire. A rule matching nothing loads, runs, and passes a case that
+      wants nothing, so the run fails until some case shows it working."
+    files:
+      styles/T/Weasel.test.yml: |
+        - name: flags a weasel word
+          input: We really need this.
+          want: |
+            1:4:T.Weasel:'really' is a weasel word!
+      styles/T/Silent.yml: |
+        extends: existence
+        message: "'%s' is banned."
+        level: warning
+        tokens:
+          - nowhere
+
+        tests:
+          - name: never fires
+            input: Plain prose.
+            want: ""
+    args: test --coverage styles
+    exit: 1
+    contains: |
+      ✗ 1 rule produced no alert in any case
+
+          T.Silent
+
+  - name: coverage-json
+    about: the JSON report carries the same list under `uncovered`
+    files:
+      styles/T/Silent.yml: |
+        extends: existence
+        message: "'%s' is banned."
+        level: warning
+        tokens:
+          - nowhere
+
+        tests:
+          - name: never fires
+            input: Plain prose.
+            want: ""
+    args: test --coverage --output=JSON styles
+    exit: 1
+    contains: |
+      "uncovered": [
+              "T.Silent",
+              "T.Weasel"
+          ]

@@ -604,3 +604,81 @@ cases:
       test.txt:3:28:Q.Speech:'knew' in speech.
       test.txt:5:5:Q.Narration:'knew' in narration.
       test.txt:5:37:Q.Speech:'knew' in speech.
+
+  - name: named
+    about: "a named scope, defined once under config/scopes, stands in for
+      its expression wherever a rule would write it: alone, negated, or in
+      a chain. A name for a chain joins the rule's own terms. Every file
+      under the directory is read, so a package's names arrive with its
+      rules and nothing in the configuration has to mention them."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.md]
+        BasedOnStyles = N
+      styles/config/scopes/Sections.yml: |
+        methods: 'doc(section:has(> h2:contains("Methods")))'
+        lead: text & doc(h1 + p)
+      styles/N/Blinding.yml: |
+        extends: occurrence
+        message: "Methods says nothing about blinding."
+        level: error
+        scope: methods
+        token: '(?i)\bblind'
+        min: 1
+      styles/N/Hedge.yml: |
+        extends: existence
+        message: "'%s' outside Methods."
+        level: warning
+        scope: ~methods
+        tokens:
+          - maybe
+      styles/N/Lead.yml: |
+        extends: occurrence
+        message: "The lead runs over 4 words."
+        level: error
+        scope: lead
+        token: '\b\w+\b'
+        max: 4
+      test.md: |
+        # Title
+
+        A lead paragraph that maybe runs long.
+
+        ## Methods
+
+        We did things, maybe.
+
+        ## Results
+
+        Nothing, maybe.
+    args: test.md
+    exit: 1
+    want: |
+      test.md:3:1:N.Lead:The lead runs over 4 words.
+      test.md:3:23:N.Hedge:'maybe' outside Methods.
+      test.md:5:4:N.Blinding:Methods says nothing about blinding.
+      test.md:11:10:N.Hedge:'maybe' outside Methods.
+
+  - name: named-reserved
+    about: a name Vale already gives a scope is refused when it is read
+    files:
+      .vale.ini: |
+        StylesPath = styles
+
+        [*.md]
+        BasedOnStyles = N
+      styles/config/scopes/Bad.yml: |
+        heading: doc(h1)
+      styles/N/Rule.yml: |
+        extends: existence
+        message: "'%s'"
+        tokens:
+          - maybe
+      test.md: |
+        Maybe.
+    args: test.md
+    exit: 2
+    contains: "'heading' is a scope Vale defines"

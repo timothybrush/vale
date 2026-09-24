@@ -44,6 +44,7 @@ var (
 	FilterDir = filepath.Join(ConfigDir, "filters")
 	ScriptDir = filepath.Join(ConfigDir, "scripts")
 	ViewDir   = filepath.Join(ConfigDir, "views")
+	ScopeDir  = filepath.Join(ConfigDir, "scopes")
 )
 
 // ConfigDirs is a list of all directories that contain user-defined, non-style
@@ -57,6 +58,7 @@ var ConfigDirs = []string{
 	ScriptDir,
 	FilterDir,
 	ViewDir,
+	ScopeDir,
 }
 
 // ConfigVars is a list of all supported environment variables.
@@ -176,6 +178,7 @@ type CLIFlags struct {
 	Filter        string
 	Apply         bool
 	Counts        bool
+	Coverage      bool
 	Local         bool
 	NoExit        bool
 	NoColor       bool
@@ -232,6 +235,10 @@ type Config struct {
 	Styles   []string             `json:"-"`
 	Views    map[string]*View     `json:"-"`
 
+	// Scopes are the named scopes found under `config/scopes`, by name.
+	Scopes       map[string]string `json:"-"`
+	scopesLoaded bool
+
 	NLPEndpoint string // An external API to call for NLP-related work.
 
 	// Command-line configuration
@@ -266,6 +273,7 @@ func NewConfig(flags *CLIFlags) (*Config, error) {
 	cfg.CommentDelimiters = make(map[string][2]string)
 	cfg.FormatToLang = make(map[string]string)
 	cfg.Views = make(map[string]*View)
+	cfg.Scopes = make(map[string]string)
 	cfg.Paths = []string{}
 	cfg.ConfigFiles = []string{}
 

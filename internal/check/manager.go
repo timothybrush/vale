@@ -46,8 +46,14 @@ func NewManager(config *core.Config) (*Manager, error) {
 		docs:       make(map[string]cascadia.Matcher),
 	}
 
+	// Named scopes come before the rules that use them.
+	err := config.LoadScopes()
+	if err != nil {
+		return &mgr, err
+	}
+
 	// TODO: Should we only load these if we're using them?
-	err := mgr.loadDefaultRules()
+	err = mgr.loadDefaultRules()
 	if err != nil {
 		return &mgr, err
 	}
@@ -349,6 +355,15 @@ func (mgr *Manager) compileCheck(file []byte, chkName, path string) (Rule, bool,
 	generic, err = mgr.flatten(generic, path, nil)
 	if err != nil {
 		return nil, false, err
+	}
+
+	// A named scope stands in for its expression, so it is replaced before
+	// anything reads the scope: validation, the selector registry, and the
+	// walker all see the expression the rule would have written.
+	if scope, sErr := expandScopes(generic["scope"], mgr.Config.Scopes); sErr != nil {
+		return nil, false, core.NewE201FromTarget(sErr.Error(), "scope", path)
+	} else if scope != nil {
+		generic["scope"] = scope
 	}
 
 	// Set default values, if necessary.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 
@@ -184,6 +185,9 @@ func evalMath(
 			return nil, fmt.Errorf("script add: %w", err)
 		}
 	}
+	if err := script.Add("round", &tengo.UserFunction{Name: "round", Value: round}); err != nil {
+		return nil, fmt.Errorf("script add: %w", err)
+	}
 
 	compiled, err := script.RunContext(ctx)
 	if err != nil {
@@ -191,4 +195,28 @@ func evalMath(
 	}
 
 	return compiled.Get("__res__").Value(), nil
+}
+
+// round is the `round(x)` a formula can call, with an optional number of
+// decimal places: `round(x, 1)`. Tengo's math module has floor, ceil, and
+// trunc, but not this, and a grade is reported rounded.
+func round(args ...tengo.Object) (tengo.Object, error) {
+	if len(args) < 1 || len(args) > 2 {
+		return nil, tengo.ErrWrongNumArguments
+	}
+
+	x, ok := tengo.ToFloat64(args[0])
+	if !ok {
+		return nil, tengo.ErrInvalidArgumentType{Name: "x", Expected: "number", Found: args[0].TypeName()}
+	}
+
+	places := 0
+	if len(args) == 2 {
+		if places, ok = tengo.ToInt(args[1]); !ok {
+			return nil, tengo.ErrInvalidArgumentType{Name: "places", Expected: "int", Found: args[1].TypeName()}
+		}
+	}
+
+	scale := math.Pow(10, float64(places))
+	return &tengo.Float{Value: math.Round(x*scale) / scale}, nil
 }

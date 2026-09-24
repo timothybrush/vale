@@ -25,6 +25,8 @@ type testReport struct {
 	Passed  int          `json:"passed"`
 	Failed  int          `json:"failed"`
 	Results []testResult `json:"results"`
+	// Uncovered names the rules no case made fire; only with --coverage.
+	Uncovered []string `json:"uncovered,omitempty"`
 }
 
 type testResult struct {
@@ -79,14 +81,23 @@ func runTests(args []string, flags *core.CLIFlags) error {
 		}
 	}
 
-	if flags.Output == "JSON" {
-		return reportTestsJSON(results)
+	var uncovered []string
+	if flags.Coverage {
+		rules, rErr := runner.Rules(args)
+		if rErr != nil {
+			return core.NewE100("test", rErr)
+		}
+		uncovered = testsuite.Uncovered(rules, results)
 	}
 
-	return reportTests(results, files)
+	if flags.Output == "JSON" {
+		return reportTestsJSON(results, uncovered)
+	}
+
+	return reportTests(results, files, uncovered)
 }
 
-func reportTests(results []testsuite.Result, files int) error {
+func reportTests(results []testsuite.Result, files int, uncovered []string) error {
 	failed := 0
 
 	for _, r := range results {
@@ -112,10 +123,23 @@ func reportTests(results []testsuite.Result, files int) error {
 		}
 	}
 
+	if len(uncovered) > 0 {
+		fmt.Printf("\n%s %s\n\n",
+			pterm.Red("✗"),
+			pterm.Bold.Sprintf("%d %s produced no alert in any case",
+				len(uncovered), pluralize("rule", len(uncovered))))
+		for _, rule := range uncovered {
+			fmt.Printf("    %s\n", rule)
+		}
+	}
+
 	summary := fmt.Sprintf("%d %s — %d passed, %d failed",
 		files, pluralize("file", files), len(results)-failed, failed)
+	if len(uncovered) > 0 {
+		summary += fmt.Sprintf(", %d uncovered", len(uncovered))
+	}
 
-	if failed > 0 {
+	if failed > 0 || len(uncovered) > 0 {
 		fmt.Println()
 		pterm.Error.Println(summary)
 		return errTestFailed
@@ -125,8 +149,11 @@ func reportTests(results []testsuite.Result, files int) error {
 	return nil
 }
 
-func reportTestsJSON(results []testsuite.Result) error {
-	report := testReport{Results: make([]testResult, 0, len(results))}
+func reportTestsJSON(results []testsuite.Result, uncovered []string) error {
+	report := testReport{
+		Results:   make([]testResult, 0, len(results)),
+		Uncovered: uncovered,
+	}
 
 	for _, r := range results {
 		if r.Failed() {
@@ -152,7 +179,7 @@ func reportTestsJSON(results []testsuite.Result) error {
 	if err := printJSON(report); err != nil {
 		return err
 	}
-	if report.Failed > 0 {
+	if report.Failed > 0 || len(uncovered) > 0 {
 		return errTestFailed
 	}
 

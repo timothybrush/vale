@@ -316,3 +316,58 @@ func splitOutside(s string, sep rune) []string {
 	}
 	return append(parts, s[start:])
 }
+
+// expandScopes replaces each named scope in a rule's `scope` with the
+// expression it names. A `scope` is a string or a list, and comes back as a
+// list either way; nil stays nil, since an unset scope has a default of its
+// own that depends on the check.
+func expandScopes(value interface{}, names map[string]string) ([]string, error) {
+	var declared []string
+	switch v := value.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		declared = []string{v}
+	case []string:
+		declared = v
+	case []interface{}:
+		for _, item := range v {
+			declared = append(declared, fmt.Sprint(item))
+		}
+	default:
+		return nil, fmt.Errorf("'%v' is not a scope", value)
+	}
+
+	expanded := make([]string, 0, len(declared))
+	for _, scope := range declared {
+		parts := splitOutside(scope, '&')
+		for i, part := range parts {
+			term := strings.TrimSpace(part)
+			negated := strings.HasPrefix(term, "~")
+			name := strings.TrimPrefix(term, "~")
+
+			parts[i] = term
+			expr, ok := names[name]
+			if !ok {
+				continue
+			}
+			if len(splitOutside(expr, '&')) > 1 {
+				if negated {
+					return nil, fmt.Errorf(
+						"'~%s' negates a chain, '%s', which has no opposite", name, expr)
+				}
+				// A chain joins the rule's own terms: its `doc(...)` no longer
+				// stands alone, which is what a chain asks for anyway.
+				parts[i] = expr
+				continue
+			}
+			if negated {
+				expr = "~" + expr
+			}
+			parts[i] = expr
+		}
+		expanded = append(expanded, strings.Join(parts, " & "))
+	}
+
+	return expanded, nil
+}

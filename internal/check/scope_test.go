@@ -137,3 +137,45 @@ func TestScopeExcluded(t *testing.T) {
 		t.Errorf("~quote should exclude the quote scope, got %v", got)
 	}
 }
+
+// A named scope stands in for its expression wherever a term could go: alone,
+// negated, or in a chain. A chain has no opposite, so negating one is refused.
+func TestExpandScopes(t *testing.T) {
+	names := map[string]string{
+		"methods": `doc(section:has(> h2:contains("Methods")))`,
+		"lead":    "text & doc(h1 + p)",
+	}
+
+	for _, tt := range []struct {
+		name  string
+		scope interface{}
+		want  []string
+	}{
+		{"none", nil, nil},
+		{"unnamed string", "heading", []string{"heading"}},
+		{"unnamed list", []interface{}{"heading", "~list"}, []string{"heading", "~list"}},
+		{"alone", "methods", []string{`doc(section:has(> h2:contains("Methods")))`}},
+		{"negated", "~methods", []string{`~doc(section:has(> h2:contains("Methods")))`}},
+		{"in a chain", "sentence & methods", []string{`sentence & doc(section:has(> h2:contains("Methods")))`}},
+		{"chain alone", "lead", []string{"text & doc(h1 + p)"}},
+		{"chain in a chain", "list & lead", []string{"list & text & doc(h1 + p)"}},
+		{"list of names", []string{"methods", "list"}, []string{`doc(section:has(> h2:contains("Methods")))`, "list"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := expandScopes(tt.scope, names)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	if _, err := expandScopes("~lead", names); err == nil {
+		t.Error("negating a chain was accepted")
+	}
+	if _, err := expandScopes(42, names); err == nil {
+		t.Error("a number was accepted as a scope")
+	}
+}

@@ -12,17 +12,25 @@ cases:
     exit: 0
     want: |
       {
+          "automated_readability": 1.64,
           "blockquote": 1,
           "characters": 113,
+          "coleman_liau": 2.49,
           "complex_words": 4,
+          "dale_chall": 9.65,
+          "flesch_kincaid": 4.68,
+          "flesch_reading_ease": 67.85,
+          "gunning_fog": 7.83,
           "heading_h1": 1,
           "heading_h2": 2,
           "heading_h3": 1,
           "list": 2,
+          "lix": 27.57,
           "long_words": 6,
           "paragraphs": 3,
           "polysyllabic_words": 5,
           "sentences": 7,
+          "smog": 7.96,
           "syllables": 40,
           "words": 25
       }
@@ -50,12 +58,14 @@ cases:
       'empty' contains no lintable files
 
   - name: formula
-    about: a `metric` rule reads the same counts -- the weighted total spells
-      them out, so 221 means 2 H2s, 2 list items, and 1 blockquote
+    about: "a `metric` rule reads the same counts -- the weighted total spells
+      them out, so 221 means 2 H2s, 2 list items, and 1 blockquote -- and the
+      readability scores, which `round` rounds to the places asked for"
     args: .
     exit: 0
     want: |
       test.md:1:1:M.Counts:counts: 221.00
+      test.md:1:1:M.Grade:grade: 4.70
 
   - name: scoped
     about: "a `metric` or `readability` rule measures whatever block its scope

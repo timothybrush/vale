@@ -359,6 +359,20 @@ func addTextMetrics(params map[string]interface{}, doc *summarize.Document) {
 	params["words"] = doc.NumWords
 	params["polysyllabic_words"] = doc.NumPolysylWords
 	params["syllables"] = doc.NumSyllables
+
+	// Every score divides by the sentence count, and a block with words but
+	// no sentence would put NaN in the output.
+	if doc.NumSentences == 0 {
+		return
+	}
+	params["automated_readability"] = doc.AutomatedReadability()
+	params["coleman_liau"] = doc.ColemanLiau()
+	params["dale_chall"] = doc.DaleChall()
+	params["flesch_kincaid"] = doc.FleschKincaid()
+	params["flesch_reading_ease"] = doc.FleschReadingEase()
+	params["gunning_fog"] = doc.GunningFog()
+	params["lix"] = doc.LIX()
+	params["smog"] = doc.SMOG()
 }
 
 // FindLoc calculates the line and span of an Alert.
