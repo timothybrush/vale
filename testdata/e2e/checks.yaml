@@ -588,3 +588,62 @@ cases:
       test.md:3:24:Ident.Spelling:'teh' is a typo.
       test.md:5:7:Ident.Spelling:'recieve' is a typo.
       test.md:5:29:Ident.Spelling:'recieve' is a typo.
+
+  - name: script-block-offsets
+    about: "a `script` rule's matches are offsets into the block it was given,
+      and the block is not the file: a paragraph two paragraphs down starts
+      at byte 0 of its own text. Each match is carried to the source through
+      the block's runs, so it lands on the word in Markdown, in plain text,
+      and in a list item, rather than at that byte count from the top of the
+      file."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*]
+        BasedOnStyles = S
+      styles/S/Long.yml: |
+        extends: script
+        message: "'%s' is a long word."
+        level: warning
+        scope: paragraph
+        script: |
+          text := import("text")
+          matches := []
+          for m in text.re_find(`[A-Za-z]{12,}`, scope, -1) {
+            matches = append(matches, {begin: m[0].begin, end: m[0].end})
+          }
+      styles/S/Item.yml: |
+        extends: script
+        message: "'%s' in a list item."
+        level: warning
+        scope: list
+        script: |
+          text := import("text")
+          matches := []
+          for m in text.re_find(`[A-Za-z]{12,}`, scope, -1) {
+            matches = append(matches, {begin: m[0].begin, end: m[0].end})
+          }
+      test.md: |
+        # Title
+
+        A short first paragraph.
+
+        Then an *interdepartmental* reorganization, notwithstanding everything.
+
+        - One considerations item.
+      test.txt: |
+        A short first paragraph.
+
+        Then an interdepartmental reorganization, notwithstanding everything.
+    args: .
+    exit: 0
+    want: |
+      test.md:5:10:S.Long:'interdepartmental' is a long word.
+      test.md:5:29:S.Long:'reorganization' is a long word.
+      test.md:5:45:S.Long:'notwithstanding' is a long word.
+      test.md:7:7:S.Item:'considerations' in a list item.
+      test.txt:3:9:S.Long:'interdepartmental' is a long word.
+      test.txt:3:27:S.Long:'reorganization' is a long word.
+      test.txt:3:43:S.Long:'notwithstanding' is a long word.
