@@ -34,11 +34,14 @@ var rstArgs = []string{
 	"--no-toc-backlinks",
 	"--no-footnote-backlinks",
 	"--no-section-numbering",
-	// A document is UTF-8 whatever the console's code page: without these,
-	// rst2html on Windows reads stdin as cp1252 and writes the mojibake out.
-	"--input-encoding=utf-8",
-	"--output-encoding=utf-8",
 }
+
+// rstEnv puts the spawned Python in UTF-8 mode. Docutils reads stdin through
+// Python's text layer, which on Windows decodes with the console's code page,
+// cp1252, and no Docutils flag reaches below that layer: a document's UTF-8
+// went in as mojibake and came out the same. The pooled interpreter is not
+// affected, since it reads and writes bytes.
+var rstEnv = []string{"PYTHONUTF8=1", "PYTHONIOENCODING=utf-8"}
 
 // Converting a document with Docutils takes a few milliseconds; starting
 // Python and importing Docutils takes seventy. Vale paid the latter once per
@@ -378,12 +381,17 @@ func (l *Linter) callRst(text, exe string) (string, error) {
 		}
 	}
 
-	html, err := system.ExecuteWithInput(exe, text, rstArgs...)
+	html, err := rstSpawn(exe, text)
 	if err != nil {
 		return "", err
 	}
 
 	return rstBody(html), nil
+}
+
+// rstSpawn converts one document with a fresh rst2html process.
+func rstSpawn(exe, text string) (string, error) {
+	return system.ExecuteWithInputEnv(exe, text, rstEnv, rstArgs...)
 }
 
 // rstAttrs is the server's argument list: the `[sphinx]` section as JSON,

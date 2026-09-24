@@ -55,7 +55,7 @@ func TestRSTPoolMatchesSpawnedOutput(t *testing.T) {
 			t.Fatalf("pooled convert failed: %v", cErr)
 		}
 
-		spawned, sErr := system.ExecuteWithInput(exe, doc, rstArgs...)
+		spawned, sErr := rstSpawn(exe, doc)
 		if sErr != nil {
 			t.Fatalf("spawned convert failed: %v", sErr)
 		}
