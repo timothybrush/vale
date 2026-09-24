@@ -382,12 +382,18 @@ func (l *Linter) lintProse(f *core.File, blk nlp.Block, lines int, split bool) e
 }
 
 func (l *Linter) lintTxt(f *core.File) error {
+	// A manuscript with chapters is a document: its chapter lines are
+	// headings, and each one opens a section. See txtdoc.go.
+	if doc, ok := textToHTML(f.Content); ok {
+		return l.lintHTMLTokens(f, []byte(doc), 0)
+	}
+
 	block := nlp.NewBlock("", f.Content, "text"+f.MetaScope+f.RealExt)
 
 	// Plain text never becomes HTML, so its quotations are paired here and
 	// carried as inline runs, the way the walker carries a `q`.
 	if l.Manager.HasScope("quote") {
-		for _, span := range quoteSpans(f.Content) {
+		for _, span := range nlp.QuoteSpans(f.Content) {
 			block.Inline = append(block.Inline, nlp.Inline{Scope: "quote", Begin: span[0], End: span[1]})
 		}
 	}

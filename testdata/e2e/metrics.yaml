@@ -29,6 +29,8 @@ cases:
           "long_words": 6,
           "paragraphs": 3,
           "polysyllabic_words": 5,
+          "quote_words": 0,
+          "sentence_length_sd": 2.06,
           "sentences": 7,
           "smog": 7.96,
           "syllables": 40,

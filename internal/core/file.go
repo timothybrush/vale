@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -359,6 +360,8 @@ func addTextMetrics(params map[string]interface{}, doc *summarize.Document) {
 	params["words"] = doc.NumWords
 	params["polysyllabic_words"] = doc.NumPolysylWords
 	params["syllables"] = doc.NumSyllables
+	params["quote_words"] = float64(nlp.QuotedWords(doc.Content))
+	params["sentence_length_sd"] = sentenceLengthSD(doc)
 
 	// Every score divides by the sentence count, and a block with words but
 	// no sentence would put NaN in the output.
@@ -863,4 +866,25 @@ func (f *File) Level(name, compiled string) string {
 		return level
 	}
 	return compiled
+}
+
+// sentenceLengthSD is the standard deviation of the words per sentence: how
+// much the sentences vary in length, which a document of one long sentence
+// after another and a document of short ones both put at zero.
+func sentenceLengthSD(doc *summarize.Document) float64 {
+	n := float64(len(doc.Sentences))
+	if n == 0 {
+		return 0
+	}
+	mean := 0.0
+	for _, s := range doc.Sentences {
+		mean += float64(s.Length)
+	}
+	mean /= n
+	sum := 0.0
+	for _, s := range doc.Sentences {
+		d := float64(s.Length) - mean
+		sum += d * d
+	}
+	return math.Sqrt(sum / n)
 }

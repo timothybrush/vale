@@ -1870,3 +1870,63 @@ cases:
     exit: 1
     want: |
       test.md:7:14:T.Spacing:No space at 'e.R'.
+
+  - name: text-chapters
+    about: "a plain-text manuscript that marks its chapters -- a line of its
+      own reading Chapter One, Prologue, Part II, or a bare number -- is read
+      as a document: the lines are headings, each opens a section, a first
+      short line followed by a chapter is the title, and a row of asterisks
+      is a scene break. Prose rules land where they always did, and the
+      chapter rules a Markdown manuscript gets now reach the .txt one."
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.txt]
+        BasedOnStyles = M
+      styles/M/Chapter.yml: |
+        extends: metric
+        message: "A chapter of %s words."
+        level: warning
+        scope: 'doc(section:has(> h2))'
+        formula: words
+        condition: "< 20"
+      styles/M/Heading.yml: |
+        extends: existence
+        message: "'%s' in a heading."
+        level: warning
+        scope: heading
+        tokens:
+          - Draft
+      styles/M/Very.yml: |
+        extends: existence
+        message: "'%s' outside speech."
+        level: warning
+        scope: ~quote
+        tokens:
+          - very
+      story.txt: |
+        The Long Way Home
+
+        Chapter One (Draft)
+
+        It was very late when she left. "I am very sure," he said. She did not answer him at all.
+
+        * * *
+
+        He waited by the door for a very long time.
+
+        Chapter Two
+
+        Nothing happened.
+      plain.txt: |
+        Chapter one was long, and the chapter after it was very long too.
+    args: .
+    exit: 0
+    want: |
+      plain.txt:1:52:M.Very:'very' outside speech.
+      story.txt:3:14:M.Heading:'Draft' in a heading.
+      story.txt:5:8:M.Very:'very' outside speech.
+      story.txt:9:29:M.Very:'very' outside speech.
+      story.txt:11:1:M.Chapter:A chapter of 4.00 words.

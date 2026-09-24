@@ -1,6 +1,8 @@
 package lint
 
 import (
+	"github.com/vale-cli/vale/v3/internal/nlp"
+
 	"reflect"
 	"testing"
 
@@ -24,11 +26,11 @@ func TestQuoteSpans(t *testing.T) {
 	}
 	for _, c := range cases {
 		var got []string
-		for _, s := range quoteSpans(c.in) {
+		for _, s := range nlp.QuoteSpans(c.in) {
 			got = append(got, c.in[s[0]:s[1]])
 		}
 		if !reflect.DeepEqual(got, c.want) {
-			t.Errorf("quoteSpans(%q) = %q, want %q", c.in, got, c.want)
+			t.Errorf("nlp.QuoteSpans(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 }
