@@ -3,6 +3,7 @@ package code
 import (
 	"fmt"
 	"regexp"
+	"sync"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/vale-cli/vale/v3/internal/core"
@@ -46,7 +47,32 @@ type Language struct {
 }
 
 // GetLanguageFromExt returns a Language based on the given file extension.
+//
+// The grammar is shared across calls: each call builds a fresh Language,
+// whose queries a View may replace, but the grammar underneath is the same
+// one, and a compiled query is cached against it (see compiledQuery). A
+// fresh grammar handle per call made that cache miss every time.
 func GetLanguageFromExt(ext string) (*Language, error) {
+	lang, err := newLanguage(ext)
+	if err != nil {
+		return nil, err
+	}
+	lang.Parser = sharedGrammar(core.GetNormedExt(ext), lang.Parser)
+	return lang, nil
+}
+
+// grammars holds the first grammar handle seen for each extension.
+var grammars sync.Map
+
+func sharedGrammar(ext string, fresh *sitter.Language) *sitter.Language {
+	if g, ok := grammars.Load(ext); ok {
+		return g.(*sitter.Language) //nolint:errcheck // only *sitter.Language is stored
+	}
+	g, _ := grammars.LoadOrStore(ext, fresh)
+	return g.(*sitter.Language) //nolint:errcheck // only *sitter.Language is stored
+}
+
+func newLanguage(ext string) (*Language, error) {
 	switch core.GetNormedExt(ext) {
 	case ".go":
 		return Go(), nil

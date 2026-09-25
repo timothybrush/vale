@@ -132,6 +132,8 @@ func (l *Linter) lintScopedValues(f *core.File, values []core.ScopedValues) erro
 
 	for _, match := range values {
 		f.SetMetaScope(match.Scope)
+		// Once per scope, not per value: the lookup walks the format table.
+		asCode := isCode(match.Format)
 
 		seen := make(map[string]int)
 		for _, sv := range match.Values {
@@ -194,7 +196,7 @@ func (l *Linter) lintScopedValues(f *core.File, values []core.ScopedValues) erro
 				err = l.lintOrg(f)
 			case match.Format == "adoc":
 				err = l.lintADoc(f)
-			case isCode(match.Format):
+			case asCode:
 				err = l.lintAsCode(f, "."+match.Format)
 			default:
 				err = l.lintLines(f)

@@ -65,13 +65,15 @@ func (l *Linter) lintCode(f *core.File) error {
 	}
 	wholeFile := f.Content
 
+	converted := l.rstBatch(f, comments, "")
+
 	last := len(f.Alerts) // the file may hold alerts from cells before this one
-	for _, comment := range comments {
+	for i, comment := range comments {
 		f.SetMetaScope(comment.Scope)
 		if l.skipsComment(comment.Scope) {
 			continue
 		}
-		err = l.lintComment(f, comment, comment.Format)
+		err = l.lintComment(f, comment, comment.Format, converted[i])
 		if err != nil {
 			return err
 		}
@@ -85,7 +87,65 @@ func (l *Linter) lintCode(f *core.File) error {
 	}
 
 	f.SetText(wholeFile)
+	if f.Summary.Len() > 0 {
+		// The comments read as markup added up to a summary; see lintSizedScopes.
+		return l.lintSummary(f)
+	}
 	return nil
+}
+
+// rstBatch converts every comment written in reStructuredText in one
+// Docutils call, and returns each one's HTML by index. fallback is the
+// format a comment has when its query named none. Nothing is returned when
+// fewer than two comments qualify or the batch fails, and each comment is
+// then converted on its own.
+func (l *Linter) rstBatch(f *core.File, comments []code.Comment, fallback string) map[int]string {
+	var (
+		docs []string
+		idx  []int
+	)
+
+	// Each comment is prepared as the fragment it will be linted as; see
+	// lintComment.
+	wholeFile, kind, ext := f.Content, f.Format, f.NormedExt
+	f.Format = "fragment"
+	f.SetNormedExt("rst")
+	defer func() {
+		f.Format, f.NormedExt = kind, ext
+		f.SetText(wholeFile)
+	}()
+
+	for i, c := range comments {
+		format := c.Format
+		if format == "" {
+			format = fallback
+		}
+		if format != "rst" || l.skipsComment(c.Scope) {
+			continue
+		}
+
+		f.SetText(c.Text)
+		s, err := l.prepareRST(f)
+		if err != nil {
+			return nil
+		}
+		docs = append(docs, s)
+		idx = append(idx, i)
+	}
+
+	if len(docs) < 2 {
+		return nil
+	}
+	parts, err := l.convertRSTBatch(docs)
+	if err != nil {
+		return nil
+	}
+
+	out := make(map[int]string, len(idx))
+	for k, i := range idx {
+		out[i] = parts[k]
+	}
+	return out
 }
 
 // dropMasked removes the alerts, from last on, that the comment's
@@ -111,7 +171,10 @@ func dropMasked(alerts []core.Alert, last int, comment code.Comment) []core.Aler
 // block in a Rust `///` comment is code and a `<pre>` in a Javadoc block is
 // not prose. The file is a fragment of that markup while the comment is
 // read, and itself again afterwards.
-func (l *Linter) lintComment(f *core.File, comment code.Comment, format string) error {
+//
+// html is the comment already converted, when it was part of a batch (see
+// rstBatch), and empty otherwise.
+func (l *Linter) lintComment(f *core.File, comment code.Comment, format, html string) error {
 	if format == "" {
 		f.SetText(maskURLs(comment.Text))
 		return l.lintLines(f)
@@ -127,7 +190,11 @@ func (l *Linter) lintComment(f *core.File, comment code.Comment, format string) 
 	case ".md":
 		err = l.lintMarkdown(f)
 	case ".rst":
-		err = l.lintRST(f)
+		if html != "" {
+			err = l.lintRSTHTML(f, html)
+		} else {
+			err = l.lintRST(f)
+		}
 	case ".html":
 		err = l.lintHTML(f)
 	case ".adoc":

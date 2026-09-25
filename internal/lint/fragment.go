@@ -99,9 +99,10 @@ func (l *Linter) lintFragments(f *core.File) error {
 	}
 
 	wholeFile := f.Content
+	converted := l.rstBatch(f, comments, strings.TrimPrefix(f.NormedExt, "."))
 
 	last := 0
-	for _, comment := range comments {
+	for i, comment := range comments {
 		// QDoc reads `/*! ... */` only; a `//` line comment or a plain
 		// `/* ... */` block is code, not documentation.
 		if f.NormedExt == ".qdoc" && !strings.HasPrefix(comment.Source, "/*!") {
@@ -118,7 +119,7 @@ func (l *Linter) lintFragments(f *core.File) error {
 		if format == "" {
 			format = strings.TrimPrefix(f.NormedExt, ".")
 		}
-		err = l.lintComment(f, comment, format)
+		err = l.lintComment(f, comment, format, converted[i])
 		if err != nil {
 			return err
 		}
@@ -134,5 +135,8 @@ func (l *Linter) lintFragments(f *core.File) error {
 	// Each comment was linted in the file's place; put the file back, so the
 	// `raw` scope that runs next reads the source and not the last comment.
 	f.RestoreText(wholeFile)
-	return err
+	if err != nil {
+		return err
+	}
+	return l.lintSummary(f)
 }

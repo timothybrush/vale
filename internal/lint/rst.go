@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -330,34 +331,119 @@ func rstProbe(exe string) []string {
 }
 
 func (l *Linter) lintRST(f *core.File) error {
-	var html string
-
-	rst2html := system.Which([]string{
-		"rst2html", "rst2html.py", "rst2html-3", "rst2html-3.py"})
-
+	rst2html := rstExe()
 	if rst2html == "" {
 		return core.NewE100("lintRST", errors.New("rst2html not found"))
 	}
 
-	err := l.lintMetadata(f)
+	s, err := l.prepareRST(f)
 	if err != nil {
 		return err
 	}
 
-	s, err := l.Transform(f)
-	if err != nil {
-		return err
-	}
-
-	s = reSphinx.ReplaceAllString(s, ".. code::")
-	s = reCodeBlock.ReplaceAllString(s, "::")
-
-	html, err = l.callRst(s, rst2html)
+	html, err := l.callRst(s, rst2html)
 	if err != nil {
 		return core.NewE100(f.Path, err)
 	}
 
+	return l.lintRSTHTML(f, html)
+}
+
+// rstExe is the rst2html on PATH, or empty.
+func rstExe() string {
+	return system.Which([]string{
+		"rst2html", "rst2html.py", "rst2html-3", "rst2html-3.py"})
+}
+
+// prepareRST is the document as Docutils is given it.
+func (l *Linter) prepareRST(f *core.File) (string, error) {
+	s, err := l.Transform(f)
+	if err != nil {
+		return "", err
+	}
+
+	s = reSphinx.ReplaceAllString(s, ".. code::")
+	s = reCodeBlock.ReplaceAllString(s, "::")
+	return s, nil
+}
+
+// lintRSTHTML lints a document from its converted form.
+func (l *Linter) lintRSTHTML(f *core.File, html string) error {
+	if err := l.lintMetadata(f); err != nil {
+		return err
+	}
 	return l.lintHTMLTokens(f, []byte(html), 0)
+}
+
+// A batch is several documents converted together, joined by a literal
+// block holding a token no document has and split apart again on it.
+//
+// Docutils parses at a steady couple of milliseconds per kilobyte, so a file
+// of a thousand docstrings costs the same whether they are sent one at a
+// time or all at once -- and one at a time, they went to one process in
+// turn. Sent as chunks, they go to every process the pool has, which on a
+// run over a directory is one per core.
+const (
+	rstSplitMark  = "vale-split-9d1f7c"
+	rstChunkBytes = 32 * 1024
+)
+
+var (
+	rstSplit   = "\n\n::\n\n   " + rstSplitMark + "\n\n"
+	reRSTSplit = regexp.MustCompile(`<pre class="literal-block">\s*` + rstSplitMark + `\s*</pre>\n?`)
+)
+
+// convertRSTBatch converts the documents, in chunks and concurrently, and
+// returns each one's HTML in order.
+func (l *Linter) convertRSTBatch(docs []string) ([]string, error) {
+	rst2html := rstExe()
+	if rst2html == "" {
+		return nil, errors.New("rst2html not found")
+	}
+
+	// Chunks of consecutive documents, each up to rstChunkBytes.
+	var chunks [][]string
+	size := 0
+	for _, doc := range docs {
+		if n := len(chunks); n == 0 || size+len(doc) > rstChunkBytes {
+			chunks = append(chunks, nil)
+			size = 0
+		}
+		chunks[len(chunks)-1] = append(chunks[len(chunks)-1], doc)
+		size += len(doc)
+	}
+
+	converted := make([][]string, len(chunks))
+	errs := make([]error, len(chunks))
+
+	var wg sync.WaitGroup
+	for i, chunk := range chunks {
+		wg.Add(1)
+		go func(i int, chunk []string) {
+			defer wg.Done()
+			html, err := l.callRst(strings.Join(chunk, rstSplit), rst2html)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			parts := reRSTSplit.Split(html, -1)
+			if len(parts) != len(chunk) {
+				errs[i] = fmt.Errorf("rst batch: %d documents, %d parts", len(chunk), len(parts))
+				return
+			}
+			converted[i] = parts
+		}(i, chunk)
+	}
+	wg.Wait()
+
+	var out []string
+	for i := range chunks {
+		if errs[i] != nil {
+			return nil, errs[i]
+		}
+		out = append(out, converted[i]...)
+	}
+	return out, nil
 }
 
 // callRst converts one document, over a pooled interpreter when Docutils can

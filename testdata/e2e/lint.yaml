@@ -2178,3 +2178,56 @@ cases:
       page.html:4:62:Vale.Spelling:Did you really mean 'restrt'?
       page.html:5:48:Vale.Spelling:Did you really mean 'shrt'?
       page.html:6:25:Vale.Spelling:Did you really mean 'storag'?
+
+  - name: html-figure
+    about: A figure's caption and its image's alt text are prose.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.html]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+      styles/.keep: ""
+      page.html: |
+        <p>Intro.</p>
+        <figure>
+          <img src="x.png" alt="Diagram of the pipline">
+          <figcaption>The pipline over time.</figcaption>
+        </figure>
+        <p>After.</p>
+    args: page.html
+    exit: 1
+    want: |
+      page.html:3:40:Vale.Spelling:Did you really mean 'pipline'?
+      page.html:4:19:Vale.Spelling:Did you really mean 'pipline'?
+
+  - name: qdoc-inline-omit
+    about: An omission closed on its own line ends there.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.qdoc]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+      styles/.keep: ""
+      page.qdoc: |
+        /*!
+            \page a.html
+            \title A guide
+
+            \omit oldname is kept \endomit The recrod is read once.
+
+            \note The connexion limit applies.
+        */
+    args: page.qdoc
+    exit: 1
+    want: |
+      page.qdoc:5:40:Vale.Spelling:Did you really mean 'recrod'?

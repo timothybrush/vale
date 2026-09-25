@@ -5,6 +5,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	sitter "github.com/smacker/go-tree-sitter"
 )
@@ -170,7 +171,7 @@ func GetComments(source []byte, lang *Language) ([]Comment, error) {
 	engine := NewQueryEngine(tree, lang)
 
 	for _, query := range lang.Queries {
-		q, qErr := sitter.NewQuery([]byte(query.Expr), lang.Parser)
+		q, qErr := compiledQuery(lang.Parser, query.Expr)
 		if qErr != nil {
 			return comments, qErr
 		}
@@ -194,6 +195,30 @@ func GetComments(source []byte, lang *Language) ([]Comment, error) {
 	}
 
 	return joined, nil
+}
+
+// queries holds each query compiled once per grammar. Compiling is most of
+// what a query costs, and a notebook asks for the same one once per cell.
+var queries sync.Map
+
+type queryKey struct {
+	lang *sitter.Language
+	expr string
+}
+
+// compiledQuery returns the query compiled for the grammar, compiling it on
+// the first request.
+func compiledQuery(lang *sitter.Language, expr string) (*sitter.Query, error) {
+	key := queryKey{lang, expr}
+	if q, ok := queries.Load(key); ok {
+		return q.(*sitter.Query), nil //nolint:errcheck // only *sitter.Query is stored
+	}
+	q, err := sitter.NewQuery([]byte(expr), lang)
+	if err != nil {
+		return nil, err
+	}
+	queries.Store(key, q)
+	return q, nil
 }
 
 // dropDirectives removes the comments addressed to a tool rather than a

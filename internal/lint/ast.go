@@ -12,7 +12,7 @@ import (
 )
 
 // skipTags are tags that we don't want to lint.
-var skipTags = []string{"script", "style", "pre", "figure", "noscript", "iframe"}
+var skipTags = []string{"script", "style", "pre", "noscript", "iframe"}
 
 // skipClasses are classes that we don't want to lint:
 //   - `problematic` is added by rst2html to processing errors which, in our
@@ -553,9 +553,23 @@ func withClasses(scope string, state *walker) string {
 func (l *Linter) lintSizedScopes(f *core.File) error {
 	f.ResetComments()
 
-	// Run all rules with `scope: summary`
-	//
-	// TODO: is this the most efficient place to assign tagging?
+	// A fragment is one comment of a file, and its summary is the file's:
+	// linted once, when every comment has been read (see lintCode). Doing it
+	// here lowercased the whole summary so far for every comment, which is
+	// quadratic in the file.
+	if f.Format == "fragment" {
+		return nil
+	}
+	return l.lintSummary(f)
+}
+
+// lintSummary runs the rules scoped to `summary` over what the file's
+// blocks added up to, and nothing at all when no rule asks for it.
+func (l *Linter) lintSummary(f *core.File) error {
+	if !l.runsScoped(f, "summary") {
+		return nil
+	}
+
 	summary := nlp.NewLinedBlock(f.Content, f.Summary.String(),
 		"summary"+f.RealExt, 0)
 	summary.Runs = f.SummaryRuns
