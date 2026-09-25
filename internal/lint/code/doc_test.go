@@ -124,3 +124,19 @@ func TestDirectivesAreDropped(t *testing.T) {
 		t.Errorf("got %d comments %+v, want the one real comment", len(comments), comments)
 	}
 }
+
+func TestTOMLComments(t *testing.T) {
+	src := "# A top-level comment.\ntitle = \"not # a comment\" # A trailing one.\n\n[section]\n# Another.\nkey = 1\n"
+	comments, err := GetComments([]byte(src), TOML())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range comments {
+		got = append(got, c.Text)
+	}
+	want := "A top-level comment.|A trailing one.|Another."
+	if strings.Join(got, "|") != want {
+		t.Errorf("comments = %q, want %q", got, want)
+	}
+}

@@ -469,3 +469,41 @@ cases:
     want: |
       lib.rs:1:15:Vale.Spelling:Did you really mean 'recrd'?
       lib.rs:7:40:Vale.Spelling:Did you really mean 'detials'?
+
+  - name: data-comments
+    about: |
+      A data file's comments are prose whatever its View selects, and a `#`
+      inside a string is not a comment.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.{yml,toml}]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+        View = Data
+      styles/config/views/Data.yml: |
+        engine: dasel
+        scopes:
+          - name: title
+            expr: title
+      site.yml: |
+        # The defalt settings.
+        title: A guide to the storag layer
+        slug: "not # a commnt"  # A trailng one.
+      site.toml: |
+        # The defalt settings.
+        title = "A guide to the storag layer"
+        slug = "not # a commnt" # A trailng one.
+    args: site.yml site.toml
+    exit: 1
+    want: |
+      site.toml:1:7:Vale.Spelling:Did you really mean 'defalt'?
+      site.toml:2:25:Vale.Spelling:Did you really mean 'storag'?
+      site.toml:3:29:Vale.Spelling:Did you really mean 'trailng'?
+      site.yml:1:7:Vale.Spelling:Did you really mean 'defalt'?
+      site.yml:2:23:Vale.Spelling:Did you really mean 'storag'?
+      site.yml:3:29:Vale.Spelling:Did you really mean 'trailng'?

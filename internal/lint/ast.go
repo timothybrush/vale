@@ -585,7 +585,24 @@ func (l *Linter) lintTags(f *core.File, state *walker, tok html.Token) error {
 			}
 		}
 	}
+
+	// A page's description is prose the page shows nowhere: what a search
+	// result or a link preview says about it.
+	skipped := core.StringInSlice("description", l.Manager.Config.SkippedScopes)
+	if tok.Data == "meta" && !skipped && isDescription(tok) {
+		if content := getAttribute(tok, "content"); content != "" {
+			return l.lintBlock(
+				f, state.block(content, "text.attr.description", 0), state.lines, 0, false)
+		}
+	}
 	return nil
+}
+
+// isDescription reports whether a `meta` element carries the page's
+// description, by name or as an Open Graph property.
+func isDescription(tok html.Token) bool {
+	return getAttribute(tok, "name") == "description" ||
+		getAttribute(tok, "property") == "og:description"
 }
 
 func checkClasses(attr string, ignore []string) bool {

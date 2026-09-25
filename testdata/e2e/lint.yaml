@@ -2148,3 +2148,33 @@ cases:
       main.go:3:17:Vale.Spelling:Did you really mean 'handls'?
       main.go:6:22:Vale.Spelling:Did you really mean 'recrd'?
       main.go:10:16:Vale.Spelling:Did you really mean 'identifer'?
+
+  - name: html-meta-description
+    about: A page's description is prose the page shows nowhere, and is linted.
+    files:
+      .vale.ini: |
+        StylesPath = styles
+        MinAlertLevel = suggestion
+
+        [*.html]
+        BasedOnStyles = Vale
+        Vale.Terms = NO
+        Vale.Avoid = NO
+        Vale.Repetition = NO
+      styles/.keep: ""
+      page.html: |
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="description" content="How the cache behaves on restrt">
+          <meta property="og:description" content="The shrt version">
+          <title>A guide to the storag layer</title>
+        </head>
+        <body><p>Hello.</p></body>
+        </html>
+    args: page.html
+    exit: 1
+    want: |
+      page.html:4:62:Vale.Spelling:Did you really mean 'restrt'?
+      page.html:5:48:Vale.Spelling:Did you really mean 'shrt'?
+      page.html:6:25:Vale.Spelling:Did you really mean 'storag'?

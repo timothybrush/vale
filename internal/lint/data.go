@@ -9,6 +9,7 @@ import (
 
 	"github.com/vale-cli/vale/v3/internal/core"
 	"github.com/vale-cli/vale/v3/internal/glob"
+	"github.com/vale-cli/vale/v3/internal/lint/code"
 	"github.com/vale-cli/vale/v3/internal/nlp"
 )
 
@@ -86,6 +87,12 @@ func (l *Linter) lintData(f *core.File) error {
 		if err != nil {
 			return err
 		} else if sec.Match(f.Path) {
+			// The View says which values are prose. The file's comments
+			// are prose whatever it says, and are read as a source file's.
+			if cerr := l.lintDataComments(f); cerr != nil {
+				return cerr
+			}
+
 			found, berr := view.Apply(f)
 			if berr != nil {
 				return core.NewE201FromTarget(
@@ -100,11 +107,21 @@ func (l *Linter) lintData(f *core.File) error {
 	return nil
 }
 
+// lintDataComments lints the comments of a data file that has a grammar --
+// YAML or TOML -- and does nothing for one that has no comments to read.
+func (l *Linter) lintDataComments(f *core.File) error {
+	if _, err := code.GetLanguageFromExt(f.RealExt); err == nil {
+		return l.lintCode(f)
+	}
+	return nil
+}
+
 func (l *Linter) lintScopedValues(f *core.File, values []core.ScopedValues) error {
 	var err error
 	wholeFile := f.Content
 	srcLines := strings.Split(wholeFile, "\n")
-	last := 0
+	// The file's comments were placed already; only the values' alerts move.
+	last := len(f.Alerts)
 
 	f.Scoped = make(map[string][]string, len(values))
 	for _, match := range values {

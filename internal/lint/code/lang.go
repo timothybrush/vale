@@ -88,6 +88,8 @@ func GetLanguageFromExt(ext string) (*Language, error) {
 		return R(), nil
 	case ".yml", ".yaml":
 		return YAML(), nil
+	case ".toml":
+		return TOML(), nil
 	case ".css":
 		return CSS(), nil
 	default:
