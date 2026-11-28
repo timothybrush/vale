@@ -124,6 +124,27 @@ jobs:
           # gap in the toolchain can't pass for coverage.
           VALE_E2E_STRICT: "1"
 
+  # The npm packages: the build script, the launcher, and the JS API.
+  npm:
+    name: Test (npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - run: go build -o "$RUNNER_TEMP/vale" ./cmd/vale
+
+      - run: node --test npm/test/*.test.mjs
+        env:
+          VALE_TEST_BINARY: ${{ runner.temp }}/vale
+
   # The browser build has no CGo and no external tools, so it is its own
   # target: build it, then drive its JavaScript API from Node the way a
   # browser host would.

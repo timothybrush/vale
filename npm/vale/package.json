@@ -1,0 +1,23 @@
+{
+	"name": "@vale-cli/vale",
+	"version": "0.0.0",
+	"description": "Vale, the prose linter, with a prebuilt binary for your platform.",
+	"keywords": ["vale", "linter", "prose", "writing", "docs"],
+	"homepage": "https://vale.sh",
+	"bugs": "https://github.com/vale-cli/vale/issues",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/vale-cli/vale.git",
+		"directory": "npm/vale"
+	},
+	"license": "MIT",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"bin": {
+		"vale": "cli.js"
+	},
+	"files": ["cli.js", "index.js", "index.d.ts"],
+	"engines": {
+		"node": ">=18"
+	}
+}

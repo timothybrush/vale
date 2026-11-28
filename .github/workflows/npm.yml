@@ -1,0 +1,65 @@
+name: npm
+
+# Publishes @vale-cli/vale and its platform packages from a release's own
+# archives. Releases start as drafts, so this runs once one is published;
+# dispatch it with a tag to publish (or finish publishing) an older one.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag, such as v3.29.0
+        required: true
+
+permissions:
+  contents: read
+  id-token: write # npm trusted publishing, which also signs provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@11.6.2
+
+      - name: Download the archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |-
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist \
+            --pattern 'vale_*_checksums.txt' \
+            --pattern 'vale_*_macOS_*' --pattern 'vale_*_Linux_*' --pattern 'vale_*_Windows_*'
+
+      - name: Test the packages
+        run: node --test npm/test/*.test.mjs
+
+      # Platform packages go first, so the main package never points at a
+      # version that is not there yet. A version already on npm is skipped,
+      # which makes a rerun finish a partial publish. NPM_TOKEN is only for
+      # the first publish, before the packages exist to take a trusted
+      # publisher; remove it after.
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |-
+          version="${TAG#v}"
+          dist_tag=latest
+          case "$version" in *-*) dist_tag=next ;; esac
+          node npm/build.mjs --version "$version" --archives dist --out npm/out | while read -r dir; do
+            name=$(node -p "require('./$dir/package.json').name")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published"
+              continue
+            fi
+            npm publish "./$dir" --access public --tag "$dist_tag"
+          done
